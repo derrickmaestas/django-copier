@@ -1,0 +1,77 @@
+[project]
+name = "planly-django"
+version = "0.1.0"
+description = "A Django task management app modeled after Microsoft Planner"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0",
+    "psycopg[binary]",
+    "django-extensions",
+]
+
+[dependency-groups]
+dev = [
+    "django-debug-toolbar",
+    "ruff",
+    "ty",
+]
+test = [
+    "pytest",
+    "pytest-django",
+    "factory-boy",
+    "coverage",
+]
+prod = [
+    "gunicorn",
+    "whitenoise",
+    "sentry-sdk",
+    "structlog",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "DJ",    # flake8-django
+    "S",     # flake8-bandit (security)
+]
+ignore = [
+    "S101",  # allow assert in tests
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "core", "accounts", "plans", "tasks", "attachments", "notifications",
+]
+
+[tool.ty]
+python-version = "3.14"
+
+[tool.ty.rules]
+possibly-unbound-attribute = "warn"
+invalid-assignment = "error"
+unresolved-attribute = "error"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--reuse-db --no-migrations -q"
+
+[tool.coverage.run]
+source = ["apps/"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
