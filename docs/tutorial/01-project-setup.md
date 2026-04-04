@@ -32,7 +32,7 @@ Every project starts as a git repo. Commit early, commit often — you can alway
 
 ```bash
 uv init --no-readme --python 3.14
-uv add django psycopg[binary] django-extensions
+uv add django psycopg[binary] django-extensions "django-storages[s3]"
 ```
 
 ### Why uv?
@@ -224,6 +224,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "django_extensions",
+    "storages",
     # Planly apps
     "core",
     "accounts",

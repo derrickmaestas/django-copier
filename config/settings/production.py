@@ -24,6 +24,15 @@ MIDDLEWARE.insert(  # noqa: F405
     "whitenoise.middleware.WhiteNoiseMiddleware",
 )
 STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": os.environ.get("AWS_STORAGE_BUCKET_NAME", ""),
+            "region_name": os.environ.get("AWS_S3_REGION_NAME", "us-east-1"),
+            "endpoint_url": os.environ.get("AWS_S3_ENDPOINT_URL", ""),
+            "custom_domain": os.environ.get("AWS_S3_CUSTOM_DOMAIN", ""),
+        },
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
