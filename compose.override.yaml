@@ -1,0 +1,31 @@
+# compose.override.yaml — development overrides (auto-loaded by `docker compose up`)
+# Adds web + worker containers with volume mounts and hot-reload.
+
+services:
+  web:
+    build: .
+    command: uv run manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DJANGO_ENV: development
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: uv run manage.py db_worker
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DJANGO_ENV: development
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy

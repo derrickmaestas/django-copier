@@ -1,0 +1,23 @@
+# compose.yaml — base service definitions
+# Used by all environments. Override with compose.override.yaml (dev) or compose.prod.yaml.
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: planly
+      POSTGRES_USER: planly
+      POSTGRES_PASSWORD: planly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planly"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+
+volumes:
+  pgdata:

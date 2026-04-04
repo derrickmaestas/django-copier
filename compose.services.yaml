@@ -1,0 +1,11 @@
+# compose.services.yaml — services-only mode for local development
+# Use when you prefer running Django locally: `docker compose -f compose.yaml -f compose.services.yaml up`
+# Then run Django on your host: `uv run manage.py runserver`
+
+# This file intentionally defines no web or worker services.
+# It only exposes db and redis ports (already defined in compose.yaml).
+# No overrides needed — compose.yaml is sufficient on its own.
+#
+# Usage:
+#   docker compose -f compose.yaml -f compose.services.yaml up
+#   uv run manage.py runserver   # in another terminal
