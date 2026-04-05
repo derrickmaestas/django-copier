@@ -114,7 +114,11 @@ class TaskFactory(DjangoModelFactory):
 
 ### Model Tests
 
-Test custom methods, properties, constraints, and manager querysets:
+Only test custom methods, computed properties, and business logic you wrote. Do not test Django's built-in behavior — field declarations, `__str__`, basic CRUD, `auto_now`/`auto_now_add`, constraints enforced by migrations, or ORM defaults all work because Django works.
+
+**Test** — custom methods (`mark_complete()`), properties (`is_overdue`), custom managers/querysets (`for_user()`, `overdue()`), and any non-trivial logic.
+
+**Skip** — `__str__`, field existence, field types, `pk` identity, `USERNAME_FIELD`, `Meta.ordering`, basic save/retrieve, constraint enforcement.
 
 ```python
 # apps/tasks/tests/test_models.py
@@ -128,6 +132,7 @@ from tasks.models import Task
 
 @pytest.mark.django_db
 class TestTaskModel:
+    # GOOD — tests custom property logic with edge cases
     def test_is_overdue_true_when_past_due(self):
         task = TaskFactory(
             due_date=timezone.now().date() - timedelta(days=1),
@@ -142,12 +147,29 @@ class TestTaskModel:
         )
         assert task.is_overdue is False
 
+    # GOOD — tests custom method with side effects
     def test_mark_complete_sets_progress_and_timestamp(self):
         task = TaskFactory()
         task.mark_complete()
         task.refresh_from_db()
         assert task.progress == Task.Progress.COMPLETED
         assert task.completed_at is not None
+```
+
+```python
+# BAD — tests Django, not your code. Don't write these.
+class TestTaskModel:
+    def test_str(self):
+        task = TaskFactory(title="Do stuff")
+        assert str(task) == "Do stuff"
+
+    def test_has_title_field(self):
+        task = TaskFactory()
+        assert hasattr(task, "title")
+
+    def test_created_at_auto_set(self):
+        task = TaskFactory()
+        assert task.created_at is not None
 ```
 
 ### View Tests
@@ -262,7 +284,7 @@ class TestTaskAPI:
 
 ## Coverage
 
-85% is the practical floor. Focus coverage on models, business logic, and permission checks. Admin configuration and boilerplate `apps.py` don't need tests.
+85% is the practical floor. Focus coverage on custom methods, business logic, and permission checks. Don't write tests for Django's own behavior (`__str__`, field declarations, `auto_now`, constraints). Admin configuration and boilerplate `apps.py` don't need tests either.
 
 ```bash
 pytest --cov=apps/ --cov-report=term-missing

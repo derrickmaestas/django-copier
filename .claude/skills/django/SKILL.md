@@ -5,7 +5,18 @@ description: Django 6+ best practices, conventions, and implementation patterns 
 
 # Django
 
-Best practices and patterns for Django 6+, Python 3.13+, and PostgreSQL.
+Best practices and patterns for Django 6+, Python 3.14+, and PostgreSQL.
+
+## Tooling
+
+| Tool | Purpose |
+|------|---------|
+| **uv** | Package management — not pip, not poetry |
+| **ruff** | Linting and formatting |
+| **ty** | Type checking |
+| **Docker** | Multi-stage builds using `debian:trixie-slim` + uv-managed Python (not the official `python:3.14-slim-trixie` image — decouples OS from Python, faster runtime) |
+| **docker compose watch** | Development file syncing (not bind mounts) |
+| **django-storages[s3]** | Production file storage (S3/S3-compatible). Dev can use local filesystem or MinIO |
 
 ## Project Layout
 
@@ -23,9 +34,11 @@ sys.path.append(str(Path(__file__).resolve().parent / "apps"))
 
 ### Import conventions
 
+- **Top-level imports only.** Never use local/inline imports unless absolutely necessary to avoid circular imports.
 - **Within app source code** — use relative imports: `from .models import Plan`, `from .signals import notify`
 - **In tests** — use absolute imports: `from apps.accounts.models import User`, `from apps.accounts.tests.factories import UserFactory`
 - **Across apps** — use absolute imports: `from apps.core.models import TimeStampedModel`
+- **`django.tasks` alias** — import as `django_tasks` to avoid confusion with the `apps.tasks` app: `from django.tasks import task as django_task`
 
 ```
 planly/                      # repo root
@@ -392,13 +405,13 @@ task = get_object_or_404(
 
 ## Background Tasks (Django 6)
 
-Use the built-in `django.tasks` framework. Task functions live in `tasks.py` per app:
+Use the built-in `django.tasks` framework. Task functions live in `tasks.py` per app. Import the `@task` decorator as `django_task` to avoid confusion with the `apps.tasks` app:
 
 ```python
 # apps/tasks/tasks.py
-from django.tasks import task
+from django.tasks import task as django_task
 
-@task()
+@django_task()
 def send_assignment_notification(task_id: int, assignee_id: int) -> None:
     ...
 ```
@@ -508,6 +521,8 @@ omit = ["*/migrations/*", "*/tests/*"]
 fail_under = 85
 ```
 
+No root-level `conftest.py`. Place shared fixtures in `apps/conftest.py` (project-wide) or `apps/<app>/tests/conftest.py` (app-specific) when needed.
+
 Factories live in `apps/<app>/tests/factories.py`:
 
 ```python
@@ -519,6 +534,55 @@ class TaskFactory(DjangoModelFactory):
     bucket = factory.SubFactory(BucketFactory)
     created_by = factory.SubFactory(UserFactory)
     priority = Task.Priority.MEDIUM
+```
+
+### Model tests: only custom logic
+
+Model tests should **only** cover custom methods, computed properties, and business logic you wrote. Do not test Django's built-in behavior — field declarations, `__str__`, basic CRUD, `auto_now`/`auto_now_add`, constraints enforced by migrations, or ORM defaults all work because Django works.
+
+**Test** — custom methods (`mark_complete()`), properties (`is_overdue`), custom managers/querysets (`for_user()`, `overdue()`), and any non-trivial logic.
+
+**Skip** — `__str__`, field existence, field types, `pk` identity, `USERNAME_FIELD`, `Meta.ordering`, basic save/retrieve, constraint enforcement.
+
+```python
+# GOOD — tests custom property logic with meaningful edge cases
+class TestTask:
+    def test_is_overdue_when_past_due_and_incomplete(self):
+        task = TaskFactory(
+            due_date=timezone.now().date() - timedelta(days=1),
+            progress=Task.Progress.NOT_STARTED,
+        )
+        assert task.is_overdue is True
+
+    def test_not_overdue_when_completed(self):
+        task = TaskFactory(
+            due_date=timezone.now().date() - timedelta(days=1),
+            progress=Task.Progress.COMPLETED,
+        )
+        assert task.is_overdue is False
+
+    def test_mark_complete_sets_progress_and_timestamp(self):
+        task = TaskFactory()
+        task.mark_complete()
+        task.refresh_from_db()
+        assert task.progress == Task.Progress.COMPLETED
+        assert task.completed_at is not None
+```
+
+```python
+# BAD — tests Django, not your code
+class TestTask:
+    def test_str(self):
+        task = TaskFactory(title="Do stuff")
+        assert str(task) == "Do stuff"
+
+    def test_has_title_field(self):
+        task = TaskFactory()
+        assert hasattr(task, "title")
+
+    def test_created_at_auto_set(self):
+        task = TaskFactory()
+        assert task.created_at is not None
 ```
 
 Test background tasks with `DummyBackend`:
