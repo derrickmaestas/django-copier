@@ -26,6 +26,7 @@ Django 6+ task management app modeled after Microsoft Planner. This is an intera
 - Use relative imports within app source code: `from .models import Plan`.
 - Use absolute imports in tests and across apps: `from apps.accounts.models import User`.
 - Test classes: `Test*` prefix (e.g., `TestSettings`). Test functions: `test_*` prefix.
+- Import `django.tasks` as `django_tasks` to avoid confusion with the `apps.tasks` app: `from django.tasks import task as django_tasks`.
 - Follow ruff's configured rules (see `pyproject.toml`). Run `uv run ruff check` before suggesting commits.
 
 ## Testing
@@ -52,7 +53,7 @@ apps/              # Django apps (core, accounts, plans, tasks, attachments, not
 config/            # Django project config (settings/, urls.py, wsgi.py)
   settings/
     base.py        # Shared settings, loads .env via python-dotenv
-    development.py # DEBUG=True, debug toolbar, console email
+    local.py       # DEBUG=True, debug toolbar, console email
     test.py        # Fast hashing, dummy backends, temp media
     production.py  # Security headers, S3 storage, gunicorn
 docs/tutorial/     # Tutorial chapters (Markdown)

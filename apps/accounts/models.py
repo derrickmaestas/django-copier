@@ -3,22 +3,48 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel
 
+from .managers import UserManager
 
-class User(AbstractUser, TimeStampedModel):
-    """Custom user model with employee profile fields."""
 
-    employee_id = models.PositiveIntegerField(unique=True)
+class Discipline(TimeStampedModel):
+    """An organizational discipline (e.g., Engineering, Design, Product)."""
+
+    name = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class User(AbstractUser):
+    """Custom user model with employee ID as the username and primary key."""
+
+    username = None
+    employee_id = models.PositiveIntegerField(unique=True, primary_key=True)
     display_name = models.CharField(max_length=255, blank=True)
     division = models.CharField(max_length=255, blank=True)
     organization = models.CharField(max_length=255, blank=True)
-    team = models.CharField(max_length=255, blank=True)
+    discipline = models.ForeignKey(
+        Discipline,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
+    )
     is_manager = models.BooleanField(default=False)
 
+    USERNAME_FIELD = "employee_id"
+    REQUIRED_FIELDS = ["email"]
+
+    objects = UserManager()
+
     class Meta:
-        ordering = ["username"]
+        ordering = ["employee_id"]
 
     def __str__(self):
-        return self.username
+        return str(self.employee_id)
 
 
 class Team(TimeStampedModel):
@@ -56,7 +82,7 @@ class Membership(TimeStampedModel):
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
 
     class Meta:
-        ordering = ["user__username"]
+        ordering = ["user__employee_id"]
         constraints = [
             models.UniqueConstraint(
                 fields=["team", "user"],
@@ -65,4 +91,4 @@ class Membership(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.user.username} — {self.team.name} ({self.role})"
+        return f"{self.user.employee_id} — {self.team.name} ({self.role})"

@@ -2,49 +2,59 @@ from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.test import TestCase
 
-from apps.accounts.models import Membership, Team, User
-from apps.accounts.tests.factories import MembershipFactory, TeamFactory, UserFactory
+from apps.accounts.models import Discipline, Membership, Team, User
+from apps.accounts.tests.factories import (
+    DisciplineFactory,
+    MembershipFactory,
+    TeamFactory,
+    UserFactory,
+)
 
 
 class TestUser(TestCase):
     def test_create_user(self):
         user = User.objects.create_user(
-            username="jane",
+            employee_id=1001,
             email="jane@example.com",
             password="testpass123",  # noqa: S106
-            employee_id=1001,
         )
-        assert user.pk is not None
-        assert user.username == "jane"
+        assert user.pk == 1001
+        assert user.employee_id == 1001
         assert user.check_password("testpass123")
         assert not user.is_staff
         assert not user.is_superuser
 
     def test_create_superuser(self):
         admin = User.objects.create_superuser(
-            username="admin",
+            employee_id=9999,
             email="admin@example.com",
             password="adminpass123",  # noqa: S106
-            employee_id=9999,
         )
         assert admin.is_staff
         assert admin.is_superuser
+
+    def test_employee_id_is_pk(self):
+        user = UserFactory(employee_id=42)
+        assert user.pk == 42
 
     def test_employee_id_unique(self):
         UserFactory(employee_id=42)
         with self.assertRaises(IntegrityError):
             UserFactory(employee_id=42)
 
+    def test_username_field(self):
+        assert User.USERNAME_FIELD == "employee_id"
+
     def test_str(self):
-        user = UserFactory(username="janedoe")
-        assert str(user) == "janedoe"
+        user = UserFactory(employee_id=12345)
+        assert str(user) == "12345"
 
     def test_default_ordering(self):
-        UserFactory(username="charlie")
-        UserFactory(username="alice")
-        UserFactory(username="bob")
-        usernames = list(User.objects.values_list("username", flat=True))
-        assert usernames == ["alice", "bob", "charlie"]
+        UserFactory(employee_id=300)
+        UserFactory(employee_id=100)
+        UserFactory(employee_id=200)
+        ids = list(User.objects.values_list("employee_id", flat=True))
+        assert ids == [100, 200, 300]
 
     def test_display_name_optional(self):
         user = UserFactory(display_name="")
@@ -55,20 +65,53 @@ class TestUser(TestCase):
         assert user.is_manager is False
 
     def test_profile_fields_optional(self):
-        user = UserFactory(division="", organization="", team="")
+        user = UserFactory(division="", organization="")
         assert user.division == ""
         assert user.organization == ""
-        assert user.team == ""
 
     def test_factory_creates_valid_user(self):
         user = UserFactory()
         assert user.pk is not None
         assert user.employee_id is not None
 
-    def test_has_timestamps(self):
+    def test_has_date_joined(self):
         user = UserFactory()
-        assert user.created_at is not None
-        assert user.modified_at is not None
+        assert user.date_joined is not None
+
+
+class TestDiscipline(TestCase):
+    def test_create_discipline(self):
+        discipline = Discipline.objects.create(name="Engineering")
+        assert discipline.pk is not None
+        assert discipline.name == "Engineering"
+
+    def test_str(self):
+        discipline = DisciplineFactory(name="Design")
+        assert str(discipline) == "Design"
+
+    def test_name_unique(self):
+        DisciplineFactory(name="Product")
+        with self.assertRaises(IntegrityError):
+            DisciplineFactory(name="Product")
+
+    def test_default_ordering(self):
+        DisciplineFactory(name="Product")
+        DisciplineFactory(name="Design")
+        DisciplineFactory(name="Engineering")
+        names = list(Discipline.objects.values_list("name", flat=True))
+        assert names == ["Design", "Engineering", "Product"]
+
+    def test_has_timestamps(self):
+        discipline = DisciplineFactory()
+        assert discipline.created_at is not None
+        assert discipline.modified_at is not None
+
+    def test_user_discipline_set_null_on_delete(self):
+        discipline = DisciplineFactory()
+        user = UserFactory(discipline=discipline)
+        discipline.delete()
+        user.refresh_from_db()
+        assert user.discipline is None
 
 
 class TestTeam(TestCase):
@@ -140,7 +183,9 @@ class TestMembership(TestCase):
 
     def test_str(self):
         membership = MembershipFactory()
-        expected = f"{membership.user.username} — {membership.team.name} ({membership.role})"
+        expected = (
+            f"{membership.user.employee_id} — {membership.team.name} ({membership.role})"
+        )
         assert str(membership) == expected
 
     def test_has_timestamps(self):
@@ -150,9 +195,11 @@ class TestMembership(TestCase):
 
     def test_default_ordering(self):
         team = TeamFactory()
-        MembershipFactory(team=team, user=UserFactory(username="zara"))
-        MembershipFactory(team=team, user=UserFactory(username="alice"))
+        MembershipFactory(team=team, user=UserFactory(employee_id=2000))
+        MembershipFactory(team=team, user=UserFactory(employee_id=1000))
         members = list(
-            Membership.objects.filter(team=team).values_list("user__username", flat=True)
+            Membership.objects.filter(team=team).values_list(
+                "user__employee_id", flat=True
+            )
         )
-        assert members == ["alice", "zara"]
+        assert members == [1000, 2000]

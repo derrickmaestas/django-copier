@@ -1,20 +1,26 @@
 import factory
 from factory.django import DjangoModelFactory
 
-from apps.accounts.models import Membership, Team, User
+from apps.accounts.models import Discipline, Membership, Team, User
+
+
+class DisciplineFactory(DjangoModelFactory):
+    class Meta:
+        model = Discipline
+
+    name = factory.Sequence(lambda n: f"Discipline {n}")
 
 
 class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
 
-    username = factory.Sequence(lambda n: f"user{n}")
-    email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")
     employee_id = factory.Sequence(lambda n: 1000 + n)
-    display_name = factory.LazyAttribute(lambda obj: obj.username.title())
+    email = factory.LazyAttribute(lambda obj: f"{obj.employee_id}@example.com")
+    display_name = factory.LazyAttribute(lambda obj: f"User {obj.employee_id}")
     division = ""
     organization = ""
-    team = ""
+    discipline = None
     is_manager = False
 
 
