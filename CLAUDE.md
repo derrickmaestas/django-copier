@@ -27,6 +27,7 @@ Django 6+ task management app modeled after Microsoft Planner. This is an intera
 - Use absolute imports in tests and across apps: `from apps.accounts.models import User`.
 - Test classes: `Test*` prefix (e.g., `TestSettings`). Test functions: `test_*` prefix.
 - Import `django.tasks` as `django_tasks` to avoid confusion with the `apps.tasks` app: `from django.tasks import task as django_tasks`.
+- Custom QuerySets in `querysets.py` (wired via `as_manager()`). Custom Managers in `managers.py` (for creation logic like `create_user`).
 - Follow ruff's configured rules (see `pyproject.toml`). Run `uv run ruff check` before suggesting commits.
 
 ## Testing
@@ -34,6 +35,9 @@ Django 6+ task management app modeled after Microsoft Planner. This is an intera
 - TDD approach: write tests alongside or before implementation code, not as a separate step after.
 - Use pytest + factory-boy. Config is in `pyproject.toml` under `[tool.pytest.ini_options]`.
 - Test settings: `config.settings.test` (via `DJANGO_SETTINGS_MODULE`).
+- Test file structure mirrors implementation: `test_models.py` for models, `test_querysets.py` for querysets, `test_views.py` for views, etc.
+- Test `__str__` methods — they are custom code. Skip field existence, `auto_now`, `Meta.ordering`, and other Django built-in behavior.
+- No header comments or decorative separators in test files. Class names and docstrings are sufficient.
 
 ## Tutorial conventions
 
