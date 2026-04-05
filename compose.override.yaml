@@ -1,12 +1,13 @@
 # compose.override.yaml — development overrides (auto-loaded by `docker compose up`)
-# Adds web + worker containers with volume mounts and hot-reload.
+# Adds web + worker containers with file watching for hot-reload.
+#
+# Start with:  docker compose up --watch
+# Or:          docker compose watch     (watch-only, no log streaming)
 
 services:
   web:
     build: .
     command: uv run manage.py runserver 0.0.0.0:8000
-    volumes:
-      - .:/app
     ports:
       - "8000:8000"
     env_file: .env
@@ -16,12 +17,40 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    develop:
+      watch:
+        # Sync Python source — Django's runserver auto-reloads on change
+        - action: sync
+          path: ./apps
+          target: /app/apps
+
+        - action: sync
+          path: ./config
+          target: /app/config
+
+        - action: sync
+          path: ./templates
+          target: /app/templates
+
+        - action: sync
+          path: ./static
+          target: /app/static
+
+        # Restart on config file changes (not picked up by auto-reload)
+        - action: sync+restart
+          path: ./.env
+          target: /app/.env
+
+        # Rebuild image when dependencies change
+        - action: rebuild
+          path: ./pyproject.toml
+
+        - action: rebuild
+          path: ./uv.lock
 
   worker:
     build: .
     command: uv run manage.py db_worker
-    volumes:
-      - .:/app
     env_file: .env
     environment:
       DJANGO_ENV: development
@@ -29,3 +58,22 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./apps
+          target: /app/apps
+
+        - action: sync
+          path: ./config
+          target: /app/config
+
+        - action: sync+restart
+          path: ./.env
+          target: /app/.env
+
+        - action: rebuild
+          path: ./pyproject.toml
+
+        - action: rebuild
+          path: ./uv.lock
