@@ -71,7 +71,7 @@ from django.db import models
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import OrderedModel, TimeStampedModel
+from apps.core.models import OrderedModel, TimeStampedModel
 
 
 # Concrete models for testing abstract bases — these get real tables
@@ -328,8 +328,12 @@ All 12 tests pass.
 In the coming chapters, every model will inherit from `TimeStampedModel`:
 
 ```python
-# Chapter 5
-class User(AbstractUser, TimeStampedModel):
+# Chapter 5 — User extends AbstractUser directly (it already has date_joined/last_login)
+class User(AbstractUser):
+    ...
+
+# Chapter 5 — Team and Membership get timestamps
+class Team(TimeStampedModel):
     ...
 
 # Chapter 6
@@ -339,7 +343,7 @@ class Plan(TimeStampedModel):
 class Bucket(TimeStampedModel, OrderedModel):
     ...
 
-# Chapter 7
+# Chapter 6
 class Task(TimeStampedModel, OrderedModel):
     ...
 
@@ -347,7 +351,7 @@ class ChecklistItem(TimeStampedModel, OrderedModel):
     ...
 ```
 
-Models that support drag-and-drop reordering inherit from both. The `save()` override on `TimeStampedModel` and the default ordering on `OrderedModel` work together seamlessly through Python's multiple inheritance.
+Most models inherit from `TimeStampedModel`. The exception is `User` — `AbstractUser` already provides `date_joined` and `last_login`, so adding timestamps would be redundant. Models that support drag-and-drop reordering inherit from both. The `save()` override on `TimeStampedModel` and the default ordering on `OrderedModel` work together seamlessly through Python's multiple inheritance.
 
 ---
 

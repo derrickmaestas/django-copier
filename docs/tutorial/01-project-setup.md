@@ -86,9 +86,9 @@ touch apps/__init__.py
 
 ### Why group apps under `apps/`?
 
-Grouping all first-party apps under `apps/` provides a clean separation from config, scripts, docs, and third-party code. It also makes imports visually distinct — `from plans.models import Plan` is obviously project code, not a third-party package.
+Grouping all first-party apps under `apps/` provides a clean separation from config, scripts, docs, and third-party code. The `__init__.py` makes `apps` a Python package, so apps are imported as `apps.plans`, `apps.accounts`, etc. — visually distinct from third-party packages.
 
-To make this work, add `apps/` to the Python path in your settings. We'll do this in the next step when we set up split settings.
+Entry points (`manage.py`, `wsgi.py`, `asgi.py`) add `apps/` to `sys.path` so internal imports resolve correctly.
 
 ## Step 5: Create the App Stubs
 

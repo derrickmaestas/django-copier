@@ -90,7 +90,7 @@ DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--reuse-db --no-migrations -q"
+addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
 ```
 
 Let's break down each setting:
@@ -110,6 +110,7 @@ These control test discovery. pytest scans for files matching `test_*.py`, class
 | `--reuse-db` | Reuses the test database between runs instead of recreating it | Saves 2-5 seconds per run. The DB is only rebuilt when you add `--create-db` or change models. |
 | `--no-migrations` | Creates tables directly from model definitions instead of running migration files | Faster and avoids issues with incomplete migrations during development. |
 | `-q` | Quiet output — just dots and a summary | Less noise. Use `-v` when you need detail on a failing test. |
+| `--import-mode=importlib` | Uses Python's `importlib` for test discovery instead of path-based imports | Required when apps live inside a package (`apps/`) with an `__init__.py`. Without this, pytest can resolve modules differently than Django expects. |
 
 ---
 
@@ -287,14 +288,14 @@ Understanding how settings load is important for debugging. Here's the chain whe
 
 ```
 pytest starts
-  → pytest-django reads DJANGO_SETTINGS_MODULE from pyproject.toml
+  → pytest-django reads DJANGO_SETTINGS_MODULE = "config.settings.test" from pyproject.toml
   → imports config.settings.test
-    → Python first runs config/settings/__init__.py (package init)
-    → then imports config.settings.test
-      → imports config.settings.base (shared settings, loads .env via dotenv)
-      → overrides: SECRET_KEY, PASSWORD_HASHERS, EMAIL_BACKEND, etc.
+    → imports config.settings.base (shared settings, loads .env via python-dotenv)
+    → overrides: SECRET_KEY, PASSWORD_HASHERS, EMAIL_BACKEND, etc.
   → Django is ready, tests run
 ```
+
+Each entry point specifies its settings module directly — `manage.py` defaults to `config.settings.local`, `wsgi.py` to `config.settings.production`, and pytest to `config.settings.test`. There's no router in `config/settings/__init__.py` (it's empty). This makes it unambiguous which settings are loaded in each context.
 
 The key insight: `base.py` uses `os.environ.get("DJANGO_SECRET_KEY", "")` with an empty default and loads `.env` via python-dotenv. The test settings override `SECRET_KEY` with a hardcoded value, so the fallback default never reaches Django's security check. In production, `production.py` validates that `SECRET_KEY` is set to a real value.
 

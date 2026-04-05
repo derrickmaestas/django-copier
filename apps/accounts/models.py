@@ -7,7 +7,7 @@ from .managers import UserManager
 
 
 class Discipline(TimeStampedModel):
-    """An organizational discipline (e.g., Engineering, Design, Product)."""
+    """HR discipline a user belongs to (e.g., Engineering, Design, Product)."""
 
     name = models.CharField(max_length=255, unique=True)
 

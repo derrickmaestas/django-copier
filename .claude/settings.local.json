@@ -19,7 +19,9 @@
       "Bash(DJANGO_ENV=test DJANGO_SECRET_KEY=test-key DJANGO_SETTINGS_MODULE=config.settings uv run python -c \"import django; django.setup\\(\\); print\\('Django setup OK'\\); from django.conf import settings; print\\('AUTH_USER_MODEL:', settings.AUTH_USER_MODEL\\); print\\('Apps loaded successfully'\\)\")",
       "Bash(mv:*)",
       "Bash(DJANGO_ENV=test uv run pytest apps/core/tests/test_models.py -v)",
-      "Bash(/c/Program Files/Docker/Docker/resources/bin/docker.exe compose:*)"
+      "Bash(/c/Program Files/Docker/Docker/resources/bin/docker.exe compose:*)",
+      "Bash(docker compose run:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }

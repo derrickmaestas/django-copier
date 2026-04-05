@@ -6,7 +6,10 @@
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"   # install all dependency groups (dev, test, prod)
     command: uv run manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
@@ -49,7 +52,10 @@ services:
           path: ./uv.lock
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"
     command: uv run manage.py db_worker
     env_file: .env
     environment:

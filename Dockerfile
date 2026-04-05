@@ -20,17 +20,20 @@ RUN apt-get update && \
 ENV UV_PYTHON_INSTALL_DIR=/python
 RUN uv python install 3.14
 
+# Dev builds install all groups; production builds pass --no-dev
+ARG UV_INSTALL_ARGS="--no-dev"
+
 # Install dependencies first (cached layer — changes less often than code)
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+    uv sync --locked --no-install-project $UV_INSTALL_ARGS
 
 # Copy project and install it
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --locked $UV_INSTALL_ARGS
 
 # ─── Stage 2: Runtime ────────────────────────────────────────
 FROM debian:trixie-slim
@@ -41,14 +44,18 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/* && \
-    addgroup --system planly && \
-    adduser --system --ingroup planly planly
+    groupadd --system planly && \
+    useradd --system --gid planly --no-create-home planly
+
+# Copy uv so dev/test can run `uv run` commands
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy the Python runtime and virtual environment from builder
 COPY --from=builder /python /python
 COPY --from=builder /app /app
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    UV_NO_CACHE=1
 
 USER planly
 
