@@ -23,5 +23,8 @@
       "Bash(docker compose run:*)",
       "Bash(docker compose:*)"
     ]
+  },
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
   }
 }
