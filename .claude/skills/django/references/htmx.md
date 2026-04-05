@@ -66,7 +66,7 @@ The `#task_card` suffix tells Django to render only that partial.
 def toggle_checklist_item(request, item_id):
     item = get_object_or_404(ChecklistItem, pk=item_id)
     item.is_completed = not item.is_completed
-    item.save(update_fields=["is_completed", "updated_at"])
+    item.save(update_fields=["is_completed", "modified_at"])
     return render(request, "tasks/task_card.html#task_card", {"task": item.task})
 ```
 
@@ -87,7 +87,7 @@ def task_edit_title(request, task_id):
     task = get_object_or_404(Task, pk=task_id)
     if request.method == "POST":
         task.title = request.POST["title"]
-        task.save(update_fields=["title", "updated_at"])
+        task.save(update_fields=["title", "modified_at"])
         return render(request, "tasks/task_card.html#task_card", {"task": task})
     return render(request, "tasks/partials/_edit_title.html", {"task": task})
 ```

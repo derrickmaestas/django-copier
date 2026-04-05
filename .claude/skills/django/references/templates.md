@@ -83,7 +83,7 @@ Return just the partial from a view using the `#fragment_name` suffix:
 def toggle_checklist_item(request, item_id):
     item = get_object_or_404(ChecklistItem, pk=item_id)
     item.is_completed = not item.is_completed
-    item.save(update_fields=["is_completed", "updated_at"])
+    item.save(update_fields=["is_completed", "modified_at"])
     task = item.task
     return render(request, "tasks/task_card.html#task_card", {"task": task})
 ```

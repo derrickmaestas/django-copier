@@ -115,8 +115,8 @@ class TaskDetailSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "description", "priority", "progress",
                   "start_date", "due_date", "completed_at", "bucket",
                   "created_by", "assignees", "labels", "checklist_items",
-                  "comments", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_by", "completed_at", "created_at", "updated_at"]
+                  "comments", "created_at", "modified_at"]
+        read_only_fields = ["id", "created_by", "completed_at", "created_at", "modified_at"]
 
 
 class TaskCreateUpdateSerializer(serializers.ModelSerializer):

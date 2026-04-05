@@ -43,7 +43,7 @@ Run `makemigrations` and `migrate`. Existing rows are computed automatically —
 ### Querying Tier 1
 
 ```python
-# apps/plans/managers.py
+# apps/plans/querysets.py
 from django.contrib.postgres.search import SearchQuery, SearchRank
 
 

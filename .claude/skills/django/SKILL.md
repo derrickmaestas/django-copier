@@ -75,7 +75,7 @@ Each app follows a consistent internal structure:
 ```
 apps/<app>/
 ├── models.py
-├── managers.py         # custom QuerySets
+├── querysets.py        # custom QuerySets (wired as managers via as_manager())
 ├── views.py            # server-rendered views
 ├── urls.py
 ├── forms.py
@@ -89,8 +89,9 @@ apps/<app>/
 │   ├── urls.py
 │   ├── permissions.py
 │   └── filters.py
-├── tests/
+├── tests/              # test files mirror implementation files
 │   ├── test_models.py
+│   ├── test_querysets.py
 │   ├── test_views.py
 │   ├── test_api.py
 │   └── factories.py   # factory_boy
@@ -110,7 +111,7 @@ apps/<app>/
 | Template files | snake_case, under `<app_name>/` | `plans/plan_board.html`, `tasks/task_card.html` |
 | Management commands | snake_case verbs | `recur_tasks`, `send_daily_digests` |
 | Settings constants | UPPER_SNAKE_CASE | `DATABASE_URL`, `PLANLY_MAX_ATTACHMENT_SIZE_MB` |
-| Test files | `test_<module>.py` | `test_models.py`, `test_views.py`, `test_tasks.py` |
+| Test files | `test_<module>.py` — mirrors implementation | `test_models.py`, `test_querysets.py`, `test_views.py` |
 | Test classes | `Test*` prefix, PascalCase | `TestSettings`, `TestPlanModel`, `TestTaskCreateView` |
 | Test functions | `test_*` prefix, snake_case | `test_django_settings_loaded`, `test_create_task` |
 | Factories | `<Model>Factory` | `PlanFactory`, `BucketFactory`, `TaskFactory` |
@@ -164,39 +165,7 @@ PLANLY_MAX_ATTACHMENT_SIZE_MB = int(os.environ.get("PLANLY_MAX_ATTACHMENT_SIZE_M
 
 ## Models
 
-### Abstract Base Models
-
-The `core` app provides abstract bases — no tables, no views, no URLs:
-
-```python
-# apps/core/models.py
-class TimeStampedModel(models.Model):
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-
-class OrderedModel(models.Model):
-    position = models.PositiveIntegerField(default=0, db_index=True)
-
-    class Meta:
-        abstract = True
-        ordering = ["position"]
-```
-
-### Field Rules
-
-| Field type | Optional means | Use |
-|---|---|---|
-| `CharField`, `TextField` | Empty string | `blank=True` only — **never** `null=True` |
-| `DateField`, `DateTimeField` | No value | `null=True, blank=True` |
-| `IntegerField`, numbers | No value | `null=True, blank=True` |
-| `BooleanField` | Always True/False | `default=` — never nullable unless three-state is needed |
-| `ForeignKey` (optional) | Relationship absent | `null=True, blank=True` |
-| `ManyToManyField` | Zero selections | `blank=True` only — **never** `null` |
-| `JSONField` | No data | Prefer `default=dict` over `null=True` |
+The `core` app provides abstract bases (`TimeStampedModel` with `created_at`/`modified_at`, `OrderedModel` with `position`). See [models-and-database.md](references/models-and-database.md) for the full model layer, null/blank rules, indexes, constraints, and migration hygiene.
 
 ### Choices
 
@@ -210,61 +179,32 @@ class Priority(models.IntegerChoices):
     LOW = 9, "Low"
 ```
 
-### Constraints and Indexes
+### QuerySets vs Managers
 
-Use `Meta.indexes` with explicit names (not `db_index=True`) and `UniqueConstraint` (not `unique_together`). Use `Deferrable.DEFERRED` on position uniqueness constraints to support drag-and-drop reordering:
+Both live in their own files. The distinction:
 
-```python
-class Bucket(TimeStampedModel, OrderedModel):
-    plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name="buckets")
-    title = models.CharField(max_length=255)
-
-    class Meta(OrderedModel.Meta):
-        constraints = [
-            models.UniqueConstraint(
-                fields=["plan", "position"],
-                name="unique_bucket_position",
-                deferrable=models.Deferrable.DEFERRED,
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["plan", "position"], name="idx_bucket_plan_pos"),
-        ]
-```
-
-### `on_delete` Strategy
-
-| Strategy | When to use |
-|---|---|
-| `CASCADE` | Child has no meaning without parent (Bucket→Plan, Task→Bucket) |
-| `SET_NULL` | Child survives parent deletion (Task.created_by → User). Requires `null=True`. |
-| `PROTECT` | Deletion would be destructive and must be prevented (Team.owner) |
-
-### Custom Managers and QuerySets
-
-Put query logic on custom QuerySets, not in views. Wire up with `as_manager()`:
+| File | Contains | When to use |
+|---|---|---|
+| `querysets.py` | `models.QuerySet` subclass | Chainable query methods: filtering, annotating, searching. Wire up with `as_manager()` on the model. This is the common case. |
+| `managers.py` | `models.Manager` or `BaseUserManager` subclass | Custom object creation (`create_user`, `create_superuser`), overriding `get_queryset()`, or methods that don't return querysets. |
 
 ```python
-# apps/tasks/managers.py
+# apps/tasks/querysets.py — chainable query methods
 class TaskQuerySet(models.QuerySet):
     def for_user(self, user):
         return self.filter(assignments__user=user)
 
-    def overdue(self):
-        return self.filter(due_date__lt=timezone.now().date(), progress__lt=100)
-
-    def with_counts(self):
-        return self.annotate(
-            checklist_total=models.Count("checklist_items"),
-            checklist_done=models.Count(
-                "checklist_items", filter=models.Q(checklist_items__is_completed=True)
-            ),
-        )
-
 # apps/tasks/models.py
 class Task(TimeStampedModel):
     objects = TaskQuerySet.as_manager()
+
+# apps/accounts/managers.py — custom creation logic
+class UserManager(BaseUserManager):
+    def create_user(self, employee_id, email=None, password=None, **extra_fields):
+        ...
 ```
+
+See [models-and-database.md](references/models-and-database.md) for full queryset examples, constraints, indexes, `on_delete` strategies, and migration hygiene.
 
 ### Fat Models
 
@@ -283,7 +223,7 @@ class Task(TimeStampedModel):
     def mark_complete(self) -> None:
         self.progress = self.Progress.COMPLETED
         self.completed_at = timezone.now()
-        self.save(update_fields=["progress", "completed_at", "updated_at"])
+        self.save(update_fields=["progress", "completed_at"])
 ```
 
 ### Signals
@@ -446,26 +386,9 @@ TASKS = {
 
 ## Templates
 
-Three-level template inheritance: base → section → page. Namespace templates under `<app_name>/` to avoid collisions.
+Three-level template inheritance: base → section → page. Namespace templates under `<app_name>/`. Use Django 6 `{% partialdef %}` for HTMX fragments — return with `render(request, "template.html#partial_name", ctx)`. Keep logic out of templates — use model properties instead of `{% if %}` chains.
 
-Django 6 `{% partialdef %}` defines reusable fragments inline — no need for separate partial files:
-
-```html
-{% partialdef task_card %}
-<div class="task-card" id="task-{{ task.pk }}">
-    <h4>{{ task.title }}</h4>
-    {% if task.is_overdue %}<span class="badge overdue">Overdue</span>{% endif %}
-</div>
-{% endpartialdef %}
-```
-
-Return just the partial from a view using the `#fragment_name` suffix:
-
-```python
-return render(request, "tasks/task_card.html#task_card", {"task": task})
-```
-
-Keep logic out of templates — use model properties (`task.is_overdue`) instead of computing in `{% if %}` chains.
+See [templates.md](references/templates.md) for inheritance patterns, CSP nonces, static files, and forms. See [htmx.md](references/htmx.md) for HTMX integration patterns.
 
 ## Query Optimization
 
@@ -503,99 +426,16 @@ plans = Plan.objects.for_user(request.user).prefetch_related(
 
 ## Testing
 
-pytest-django with factory_boy. Configure in `pyproject.toml`:
+pytest-django with factory_boy. Factories in `apps/<app>/tests/factories.py`. No root-level `conftest.py` — place shared fixtures in `apps/conftest.py` or `apps/<app>/tests/conftest.py`.
 
-```toml
-[tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings.test"
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
+### What to test
 
-[tool.coverage.run]
-source = ["apps/"]
-omit = ["*/migrations/*", "*/tests/*"]
+- **Test** — `__str__`, custom methods (`mark_complete()`), properties (`is_overdue`), and any non-trivial logic
+- **Skip** — field existence, field types, `Meta.ordering`, basic save/retrieve, constraint enforcement, `auto_now`/`auto_now_add`
+- Queryset tests go in `test_querysets.py`, not `test_models.py`
+- No header comments or decorative separators in test files
 
-[tool.coverage.report]
-fail_under = 85
-```
-
-No root-level `conftest.py`. Place shared fixtures in `apps/conftest.py` (project-wide) or `apps/<app>/tests/conftest.py` (app-specific) when needed.
-
-Factories live in `apps/<app>/tests/factories.py`:
-
-```python
-class TaskFactory(DjangoModelFactory):
-    class Meta:
-        model = Task
-
-    title = factory.Sequence(lambda n: f"Task {n}")
-    bucket = factory.SubFactory(BucketFactory)
-    created_by = factory.SubFactory(UserFactory)
-    priority = Task.Priority.MEDIUM
-```
-
-### Model tests: only custom logic
-
-Model tests should **only** cover custom methods, computed properties, and business logic you wrote. Do not test Django's built-in behavior — field declarations, `__str__`, basic CRUD, `auto_now`/`auto_now_add`, constraints enforced by migrations, or ORM defaults all work because Django works.
-
-**Test** — custom methods (`mark_complete()`), properties (`is_overdue`), custom managers/querysets (`for_user()`, `overdue()`), and any non-trivial logic.
-
-**Skip** — `__str__`, field existence, field types, `pk` identity, `USERNAME_FIELD`, `Meta.ordering`, basic save/retrieve, constraint enforcement.
-
-```python
-# GOOD — tests custom property logic with meaningful edge cases
-class TestTask:
-    def test_is_overdue_when_past_due_and_incomplete(self):
-        task = TaskFactory(
-            due_date=timezone.now().date() - timedelta(days=1),
-            progress=Task.Progress.NOT_STARTED,
-        )
-        assert task.is_overdue is True
-
-    def test_not_overdue_when_completed(self):
-        task = TaskFactory(
-            due_date=timezone.now().date() - timedelta(days=1),
-            progress=Task.Progress.COMPLETED,
-        )
-        assert task.is_overdue is False
-
-    def test_mark_complete_sets_progress_and_timestamp(self):
-        task = TaskFactory()
-        task.mark_complete()
-        task.refresh_from_db()
-        assert task.progress == Task.Progress.COMPLETED
-        assert task.completed_at is not None
-```
-
-```python
-# BAD — tests Django, not your code
-class TestTask:
-    def test_str(self):
-        task = TaskFactory(title="Do stuff")
-        assert str(task) == "Do stuff"
-
-    def test_has_title_field(self):
-        task = TaskFactory()
-        assert hasattr(task, "title")
-
-    def test_created_at_auto_set(self):
-        task = TaskFactory()
-        assert task.created_at is not None
-```
-
-Test background tasks with `DummyBackend`:
-
-```python
-def setup_method(self):
-    default_task_backend.clear()
-
-def test_assignment_enqueues_notification(self):
-    Assignment.objects.create(task=task, user=user)
-    results = default_task_backend.results
-    assert len(results) == 1
-```
+See [testing.md](references/testing.md) for pytest config, factory patterns, view/API test examples, and background task testing.
 
 ## Code Quality
 
@@ -623,13 +463,6 @@ ruff check . --fix     # lint + autofix
 ruff format .          # format
 ty check               # type check
 ```
-
-## Migrations
-
-- Never mix schema and data changes in the same migration
-- Rename auto-generated files descriptively after creation
-- Always commit migrations — conflicting migrations come from not committing early
-- Use `RunPython` in a separate migration for data backfills
 
 ## Reference Guides
 

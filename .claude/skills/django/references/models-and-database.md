@@ -11,7 +11,7 @@ from django.db import models
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    modified_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
@@ -207,10 +207,17 @@ created_by = models.ForeignKey(User, related_name="created_tasks")
 
 Use `related_name="+"` when the reverse relation isn't needed.
 
-## Custom QuerySets
+## QuerySets vs Managers
+
+Use `querysets.py` for chainable query methods (filtering, annotating, searching) — wire up with `as_manager()` on the model. Use `managers.py` for custom Manager classes that override object creation (`create_user`, `create_superuser`) or `get_queryset()`.
+
+| File | Contains | When to use |
+|---|---|---|
+| `querysets.py` | `models.QuerySet` subclass | Chainable query methods. The common case. |
+| `managers.py` | `models.Manager` or `BaseUserManager` subclass | Custom creation logic or overriding `get_queryset()`. |
 
 ```python
-# apps/tasks/managers.py
+# apps/tasks/querysets.py
 class TaskQuerySet(models.QuerySet):
     def for_plan(self, plan):
         return self.filter(bucket__plan=plan)

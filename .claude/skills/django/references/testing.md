@@ -10,7 +10,7 @@ DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--reuse-db --no-migrations -q"
+addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["apps/"]
@@ -114,11 +114,11 @@ class TaskFactory(DjangoModelFactory):
 
 ### Model Tests
 
-Only test custom methods, computed properties, and business logic you wrote. Do not test Django's built-in behavior — field declarations, `__str__`, basic CRUD, `auto_now`/`auto_now_add`, constraints enforced by migrations, or ORM defaults all work because Django works.
+Test custom methods, computed properties, `__str__`, and business logic you wrote. Do not test Django's built-in behavior. Queryset tests go in `test_querysets.py`, not `test_models.py`. Do not add header comments or decorative separators in test files.
 
-**Test** — custom methods (`mark_complete()`), properties (`is_overdue`), custom managers/querysets (`for_user()`, `overdue()`), and any non-trivial logic.
+**Test** — `__str__`, custom methods (`mark_complete()`), properties (`is_overdue`), and any non-trivial logic.
 
-**Skip** — `__str__`, field existence, field types, `pk` identity, `USERNAME_FIELD`, `Meta.ordering`, basic save/retrieve, constraint enforcement.
+**Skip** — field existence, field types, `pk` identity, `USERNAME_FIELD`, `Meta.ordering`, basic save/retrieve, constraint enforcement, `auto_now`/`auto_now_add`.
 
 ```python
 # apps/tasks/tests/test_models.py
@@ -126,13 +126,16 @@ import pytest
 from django.utils import timezone
 from datetime import timedelta
 
-from tasks.tests.factories import TaskFactory
-from tasks.models import Task
+from apps.tasks.tests.factories import TaskFactory
+from apps.tasks.models import Task
 
 
 @pytest.mark.django_db
-class TestTaskModel:
-    # GOOD — tests custom property logic with edge cases
+class TestTask:
+    def test_str(self):
+        task = TaskFactory(title="Fix login bug")
+        assert str(task) == "Fix login bug"
+
     def test_is_overdue_true_when_past_due(self):
         task = TaskFactory(
             due_date=timezone.now().date() - timedelta(days=1),
@@ -147,7 +150,6 @@ class TestTaskModel:
         )
         assert task.is_overdue is False
 
-    # GOOD — tests custom method with side effects
     def test_mark_complete_sets_progress_and_timestamp(self):
         task = TaskFactory()
         task.mark_complete()
@@ -158,11 +160,7 @@ class TestTaskModel:
 
 ```python
 # BAD — tests Django, not your code. Don't write these.
-class TestTaskModel:
-    def test_str(self):
-        task = TaskFactory(title="Do stuff")
-        assert str(task) == "Do stuff"
-
+class TestTask:
     def test_has_title_field(self):
         task = TaskFactory()
         assert hasattr(task, "title")
@@ -284,7 +282,7 @@ class TestTaskAPI:
 
 ## Coverage
 
-85% is the practical floor. Focus coverage on custom methods, business logic, and permission checks. Don't write tests for Django's own behavior (`__str__`, field declarations, `auto_now`, constraints). Admin configuration and boilerplate `apps.py` don't need tests either.
+85% is the practical floor. Focus coverage on `__str__`, custom methods, business logic, and permission checks. Don't write tests for Django's own behavior (field declarations, `auto_now`, constraints). Admin configuration and boilerplate `apps.py` don't need tests either.
 
 ```bash
 pytest --cov=apps/ --cov-report=term-missing
