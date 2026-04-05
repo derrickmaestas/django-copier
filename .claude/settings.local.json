@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(touch:*)",
+      "Bash(rm -f __TRACKED_VAR__/tests.py)",
+      "Bash(mkdir -p __TRACKED_VAR__/tests)",
+      "Bash(touch __TRACKED_VAR__/tests/__init__.py)",
+      "Bash(touch __TRACKED_VAR__/tests/test_models.py)",
+      "Bash(touch __TRACKED_VAR__/tests/test_views.py)",
+      "Bash(touch __TRACKED_VAR__/signals.py)",
+      "Bash(touch __TRACKED_VAR__/managers.py)",
+      "Bash(touch __TRACKED_VAR__/tasks.py)",
+      "Bash(mkdir -p __TRACKED_VAR__/templates/__TRACKED_VAR__)",
+      "Bash(touch core/managers.py)",
+      "Bash(mkdir:*)",
+      "Bash(DJANGO_ENV=test uv run python -c \"import django; django.setup\\(\\); print\\('Django setup OK'\\); from django.conf import settings; print\\(f'Apps: {settings.INSTALLED_APPS}'\\)\")",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings.test uv run python -c \"import django; django.setup\\(\\); print\\('Django setup OK'\\); from django.conf import settings; print\\('AUTH_USER_MODEL:', settings.AUTH_USER_MODEL\\)\")",
+      "Bash(DJANGO_ENV=test DJANGO_SECRET_KEY=test-key DJANGO_SETTINGS_MODULE=config.settings uv run python -c \"import django; django.setup\\(\\); print\\('Django setup OK'\\); from django.conf import settings; print\\('AUTH_USER_MODEL:', settings.AUTH_USER_MODEL\\)\")",
+      "Bash(DJANGO_ENV=test DJANGO_SECRET_KEY=test-key DJANGO_SETTINGS_MODULE=config.settings uv run python -c \"import django; django.setup\\(\\); print\\('Django setup OK'\\); from django.conf import settings; print\\('AUTH_USER_MODEL:', settings.AUTH_USER_MODEL\\); print\\('Apps loaded successfully'\\)\")",
+      "Bash(mv:*)",
+      "Bash(DJANGO_ENV=test uv run pytest apps/core/tests/test_models.py -v)",
+      "Bash(/c/Program Files/Docker/Docker/resources/bin/docker.exe compose:*)"
+    ]
+  }
+}
