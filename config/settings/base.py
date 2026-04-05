@@ -1,5 +1,4 @@
 import os
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,9 +11,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent  # repo root
 # Load .env file from the project root. Existing env vars take precedence
 # (so production values set via the OS/container are never overwritten).
 load_dotenv(BASE_DIR / ".env", override=False)
-
-# Add apps/ to the path so Django discovers apps as top-level modules
-sys.path.insert(0, str(BASE_DIR / "apps"))
 
 # ──────────────────────────────────────────────
 # Environment variables
@@ -36,12 +32,12 @@ INSTALLED_APPS = [
     "django_extensions",
     "storages",
     # Planly apps
-    "core",
-    "accounts",
-    "plans",
-    "tasks",
-    "attachments",
-    "notifications",
+    "apps.core",
+    "apps.accounts",
+    "apps.plans",
+    "apps.tasks",
+    "apps.attachments",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [

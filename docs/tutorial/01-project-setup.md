@@ -179,26 +179,30 @@ rm config/settings.py
 mkdir config/settings
 ```
 
-### `config/settings/__init__.py` — The Environment Router
+### `config/settings/__init__.py` — Left Empty
 
 ```python
-import os
-
-env = os.environ.get("DJANGO_ENV", "development")
-
-if env == "production":
-    from config.settings.production import *  # noqa: F401, F403
-elif env == "test":
-    from config.settings.test import *  # noqa: F401, F403
-else:
-    from config.settings.development import *  # noqa: F401, F403
+# config/settings/__init__.py
+# Empty — each entry point sets DJANGO_SETTINGS_MODULE directly.
 ```
 
-### Why this pattern?
+You might see other projects put a "router" here that reads `DJANGO_ENV` and does `from config.settings.production import *`. We deliberately avoid that pattern. Instead, each entry point declares exactly which settings module it uses:
 
-- **One env var controls everything** — set `DJANGO_ENV=production` and the right settings load. No need to change `DJANGO_SETTINGS_MODULE`.
-- **Defaults to development** — a developer cloning the repo gets dev settings without any configuration.
-- **The `# noqa` comments** silence ruff's wildcard-import warnings. This is one of the few places where `import *` is the right choice — each environment module is designed to be the complete settings namespace.
+| Entry point | Default module | Used by |
+|-------------|---------------|---------|
+| `manage.py` | `config.settings.local` | Local development, management commands |
+| `config/wsgi.py` | `config.settings.production` | Gunicorn in production |
+| `config/asgi.py` | `config.settings.production` | ASGI server in production |
+| `pyproject.toml` | `config.settings.test` | pytest |
+
+### Why direct module paths instead of a router?
+
+- **Explicit over implicit** — you can read any entry point and immediately know which settings it loads. No hunting for what `DJANGO_ENV` is set to.
+- **Uses Django's own mechanism** — `DJANGO_SETTINGS_MODULE` is the built-in way to select settings. A router reimplements what Django already provides.
+- **Easy to override** — need to run a management command with production settings? `DJANGO_SETTINGS_MODULE=config.settings.production python manage.py check`. No second env var to fight with.
+- **Fewer surprises** — a router that defaults to development can accidentally load dev settings in production if `DJANGO_ENV` isn't set. With direct module paths, `wsgi.py` always defaults to production.
+
+This is the pattern used by [cookiecutter-django](https://github.com/cookiecutter/cookiecutter-django), the most popular Django project template.
 
 ### `config/settings/base.py` — Shared Settings
 
@@ -206,13 +210,15 @@ This is the largest file. Everything common across all environments lives here:
 
 ```python
 import os
-import sys
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent  # repo root
-sys.path.insert(0, str(BASE_DIR / "apps"))
+from dotenv import load_dotenv
 
-SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # repo root
+
+load_dotenv(BASE_DIR / ".env", override=False)
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
 
 INSTALLED_APPS = [
     # Django built-ins
@@ -226,33 +232,34 @@ INSTALLED_APPS = [
     "django_extensions",
     "storages",
     # Planly apps
-    "core",
-    "accounts",
-    "plans",
-    "tasks",
-    "attachments",
-    "notifications",
+    "apps.core",
+    "apps.accounts",
+    "apps.plans",
+    "apps.tasks",
+    "apps.attachments",
+    "apps.notifications",
 ]
 ```
 
 Key decisions in `base.py`:
 
-- **`sys.path.insert(0, str(BASE_DIR / "apps"))`** — This is what lets you write `from plans.models import Plan` instead of `from apps.plans.models import Plan`.
-- **`os.environ["DJANGO_SECRET_KEY"]`** — Hard crash if the env var is missing. This is intentional — a missing secret key should fail loudly, not silently fall back to an insecure default.
+- **`python-dotenv`** — Loads `.env` from the project root. `override=False` means real environment variables (set via the OS or container) always take precedence — so production values are never overwritten by a stale `.env` file.
+- **`os.environ.get("DJANGO_SECRET_KEY", "")`** — Returns an empty string if unset. Production settings validate this isn't empty and crash loudly; test settings override with a hardcoded value. This avoids crashing during `collectstatic` or other non-secret-sensitive commands.
+- **`"apps.core"` prefix** — Apps are registered with their full dotted path. Each app's `AppConfig` sets `name = "apps.core"` and `label = "core"` to keep database table names clean.
 - **`AUTH_USER_MODEL = "accounts.User"`** — Must be set before the first migration. Changing this later requires wiping the database and starting over.
 - **`DATABASES` uses PostgreSQL** — No SQLite, even in development. Your dev database should match production to avoid surprises.
 
-### Why `os.environ` instead of `django-environ`?
+### Why `python-dotenv` + `os.environ` instead of `django-environ`?
 
-Third-party env libraries add convenience methods like type casting and URL parsing. But for a Postgres-only project like Planly, the standard library covers everything:
+Third-party env libraries add convenience methods like type casting and URL parsing. But for a Postgres-only project like Planly, `python-dotenv` + the standard library covers everything:
 
-- `os.environ["KEY"]` for required values (crashes if missing — that's a feature)
+- `python-dotenv` loads `.env` files — that's all it does, and it does it well
 - `os.environ.get("KEY", "default")` for optional values with sensible defaults
 - `int()` for numeric casting, `.split(",")` for lists
 
 One fewer dependency means one fewer thing to audit, version-pin, and keep updated.
 
-### `config/settings/development.py`
+### `config/settings/local.py`
 
 ```python
 from config.settings.base import *  # noqa: F401, F403
@@ -267,7 +274,11 @@ INTERNAL_IPS = ["127.0.0.1"]
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 ```
 
-Development settings are permissive: `DEBUG = True`, `ALLOWED_HOSTS = ["*"]`, emails print to console, caching uses local memory. The Django Debug Toolbar is added here — it's a dev-only dependency that shows SQL queries, template rendering time, and cache hits.
+Local settings are permissive: `DEBUG = True`, `ALLOWED_HOSTS = ["*"]`, emails print to console, caching uses local memory. The Django Debug Toolbar is added here — it's a dev-only dependency that shows SQL queries, template rendering time, and cache hits.
+
+### Why `local.py` instead of `development.py`?
+
+This follows the cookiecutter-django convention. "Local" is more accurate — these settings are for running on your local machine. "Development" is ambiguous: some teams have shared development servers that need different settings than your laptop.
 
 ### `config/settings/test.py`
 
@@ -293,7 +304,7 @@ Test settings are optimized for speed:
 
 ### `config/settings/production.py`
 
-Production settings lock everything down: `DEBUG = False`, HTTPS enforced, HSTS headers, secure cookies, whitenoise for static files, Redis for caching, real SMTP for email. We'll flesh this out in Chapter 17.
+Production settings lock everything down: `DEBUG = False`, validates `SECRET_KEY` is set, HTTPS enforced, HSTS headers, secure cookies, whitenoise for static files, Redis for caching, real SMTP for email. We'll flesh this out in Chapter 17.
 
 ## Step 7: Configure the App Configs
 
@@ -306,10 +317,15 @@ from django.apps import AppConfig
 
 class PlansConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
-    name = "plans"
+    name = "apps.plans"
     label = "plans"
     verbose_name = "Plans & Buckets"
 ```
+
+Two things to notice:
+
+- **`name = "apps.plans"`** — matches the dotted path used in `INSTALLED_APPS`. Django uses this to find the app's module.
+- **`label = "plans"`** — the short name used for database table prefixes (`plans_plan`, `plans_bucket`) and admin URLs. Without this, Django would use `apps.plans` as the label, which would create table names like `apps.plans_plan`.
 
 ### Why set `default_auto_field` explicitly?
 
@@ -364,13 +380,14 @@ select = [
 ignore = ["S101"]  # allow assert in tests
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "core", "accounts", "plans", "tasks", "attachments", "notifications",
-]
+known-first-party = ["apps"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
-addopts = "--reuse-db --no-migrations -q"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
 
 [tool.coverage.report]
 fail_under = 85
@@ -413,7 +430,6 @@ mkdir -p templates/partials static/css static/js static/img docs/tutorial locale
 
 ```bash
 # .env.example — copy to .env and fill in real values
-DJANGO_ENV=development
 DJANGO_SECRET_KEY=change-me-to-a-random-string
 DB_NAME=planly
 DB_USER=planly
@@ -422,11 +438,13 @@ DB_HOST=localhost
 DB_PORT=5432
 ```
 
+Notice there's no `DJANGO_ENV` here. The settings module is determined by which entry point runs — `manage.py` loads `local.py`, `wsgi.py` loads `production.py`, and pytest uses `test.py`. You can always override with `DJANGO_SETTINGS_MODULE` when needed.
+
 ## Step 12: Verify
 
 ```bash
-# Check Django can load all apps
-DJANGO_ENV=test uv run python -c "import django; django.setup(); print('OK')"
+# Check Django can load all apps (uses manage.py → local settings by default)
+uv run python manage.py check
 
 # Check ruff passes
 uv run ruff check apps/ config/
@@ -441,7 +459,7 @@ If all three pass, your project structure is solid.
 
 Before moving on, verify:
 
-- [ ] `uv run python -c "import django; django.setup()"` succeeds (with `DJANGO_ENV=test`)
+- [ ] `uv run python manage.py check` succeeds
 - [ ] `uv run ruff check apps/ config/` reports no errors
 - [ ] The project tree matches the structure shown at the top of this chapter
 - [ ] `pyproject.toml` has dependency groups for dev, test, and prod

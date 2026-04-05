@@ -22,7 +22,9 @@ Django 6+ task management app modeled after Microsoft Planner. This is an intera
 
 - Top-level imports only. Never use local/inline imports unless absolutely necessary to avoid circular imports.
 - Use `os.environ.get()` with defaults in base settings; validate required vars in environment-specific settings.
-- Apps live in `apps/` (on `sys.path`), imported as top-level modules: `from plans.models import Plan`.
+- Apps live in `apps/` package. INSTALLED_APPS uses `"apps.core"`, `"apps.accounts"`, etc.
+- Use relative imports within app source code: `from .models import Plan`.
+- Use absolute imports in tests and across apps: `from apps.accounts.models import User`.
 - Test classes: `Test*` prefix (e.g., `TestSettings`). Test functions: `test_*` prefix.
 - Follow ruff's configured rules (see `pyproject.toml`). Run `uv run ruff check` before suggesting commits.
 

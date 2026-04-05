@@ -51,9 +51,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = [
-    "core", "accounts", "plans", "tasks", "attachments", "notifications",
-]
+known-first-party = ["apps"]
 
 [tool.ty]
 python-version = "3.14"
@@ -68,7 +66,7 @@ DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--reuse-db --no-migrations -q"
+addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["apps/"]

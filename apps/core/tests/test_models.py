@@ -2,7 +2,7 @@ from django.db import models
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import OrderedModel, TimeStampedModel
+from apps.core.models import OrderedModel, TimeStampedModel
 
 
 # Concrete models for testing abstract bases — these get real tables

@@ -69,7 +69,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      DJANGO_ENV: development
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
     depends_on:
@@ -85,7 +85,7 @@ services:
       - .:/app
     env_file: .env
     environment:
-      DJANGO_ENV: development
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DB_HOST: db
     depends_on:
       db:
@@ -271,7 +271,6 @@ docker-compose*.yml
 Document every env var. Commit `.env.example`, gitignore `.env`:
 
 ```bash
-DJANGO_ENV=development
 DJANGO_SECRET_KEY=change-me
 DJANGO_ALLOWED_HOSTS=planly.example.com
 DB_NAME=planly

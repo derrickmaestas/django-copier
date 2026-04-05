@@ -9,30 +9,38 @@ Best practices and patterns for Django 6+, Python 3.13+, and PostgreSQL.
 
 ## Project Layout
 
-Use `config/` for the Django project package (not a project-named directory) and `apps/` for all first-party apps. Add `apps/` to `sys.path` so apps import as top-level modules:
+Use `config/` for the Django project package (not a project-named directory) and `apps/` for all first-party apps. `apps/` is a Python package (`__init__.py` present). Apps are registered in `INSTALLED_APPS` with the `apps.*` prefix (e.g., `"apps.core"`, `"apps.accounts"`), and each `AppConfig` sets a short `label` to keep database table names clean.
+
+Entry points (`manage.py`, `wsgi.py`, `asgi.py`) add `apps/` to `sys.path` so that internal cross-app imports can use the `apps.*` prefix:
 
 ```python
-# config/settings/base.py
+# manage.py
 import sys
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(BASE_DIR / "apps"))
+sys.path.append(str(Path(__file__).resolve().parent / "apps"))
 ```
+
+### Import conventions
+
+- **Within app source code** — use relative imports: `from .models import Plan`, `from .signals import notify`
+- **In tests** — use absolute imports: `from apps.accounts.models import User`, `from apps.accounts.tests.factories import UserFactory`
+- **Across apps** — use absolute imports: `from apps.core.models import TimeStampedModel`
 
 ```
 planly/                      # repo root
 ├── config/                  # project config (settings, urls, wsgi, asgi)
 │   ├── settings/
-│   │   ├── __init__.py      # routes to base/dev/prod/test via DJANGO_ENV
+│   │   ├── __init__.py      # empty — each entry point sets DJANGO_SETTINGS_MODULE directly
 │   │   ├── base.py
-│   │   ├── development.py
+│   │   ├── local.py
 │   │   ├── production.py
 │   │   └── test.py
 │   ├── urls.py
 │   ├── wsgi.py
 │   └── asgi.py
-├── apps/                    # all first-party apps
+├── apps/                    # all first-party apps (Python package with __init__.py)
+│   ├── __init__.py
 │   ├── core/                # abstract base models, middleware, template tags — no tables
 │   ├── accounts/            # custom user, teams, membership
 │   ├── plans/               # plans (boards), buckets (columns)
@@ -41,11 +49,12 @@ planly/                      # repo root
 │   └── notifications/       # in-app and email notifications
 ├── templates/               # project-level templates (base.html, partials, error pages)
 ├── static/                  # project-level static files
-├── requirements/            # base.txt, development.txt, production.txt, test.txt
 ├── manage.py
 ├── pyproject.toml
 ├── Dockerfile
-└── docker-compose.yml
+├── compose.yaml
+├── compose.override.yaml    # development (auto-loaded)
+└── compose.prod.yaml
 ```
 
 Each app follows a consistent internal structure:
@@ -101,30 +110,37 @@ Heuristic: if the app would have fewer than two models and no views of its own, 
 
 ## Split Settings
 
-Settings are split into environment-specific modules. `DJANGO_ENV` selects the active module:
+Settings are split into environment-specific modules. Each entry point sets `DJANGO_SETTINGS_MODULE` to the correct module directly — no router in `__init__.py`:
 
 ```python
-# config/settings/__init__.py
-import os
+# manage.py (local development)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 
-env = os.environ.get("DJANGO_ENV", "development")
+# config/wsgi.py and config/asgi.py (production)
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
 
-if env == "production":
-    from config.settings.production import *  # noqa: F401, F403
-elif env == "test":
-    from config.settings.test import *  # noqa: F401, F403
-else:
-    from config.settings.development import *  # noqa: F401, F403
+# pyproject.toml (tests)
+# [tool.pytest.ini_options]
+# DJANGO_SETTINGS_MODULE = "config.settings.test"
 ```
+
+`config/settings/__init__.py` is **empty**. This avoids the indirection of a `DJANGO_ENV` router — each entry point declares exactly which settings it uses, and `DJANGO_SETTINGS_MODULE` can always be overridden from the environment when needed (e.g., `DJANGO_SETTINGS_MODULE=config.settings.production python manage.py check`).
 
 | Module | Key characteristics |
 |--------|-------------------|
 | `base.py` | Shared: apps, middleware, database, templates, auth, `AUTH_USER_MODEL`, `TASKS` |
-| `development.py` | `DEBUG=True`, debug-toolbar, console email, `ImmediateBackend` for tasks |
+| `local.py` | `DEBUG=True`, debug-toolbar, console email, `ImmediateBackend` for tasks |
 | `production.py` | Security headers, CSP, whitenoise, Redis cache, SMTP email, `DatabaseBackend` |
 | `test.py` | MD5 password hasher, locmem email, `DummyBackend` for tasks, temp `MEDIA_ROOT` |
 
-All entry points (`manage.py`, `wsgi.py`, `asgi.py`) set `DJANGO_SETTINGS_MODULE=config.settings`.
+Entry points and their default settings modules:
+
+| Entry point | Default module | Used by |
+|-------------|---------------|---------|
+| `manage.py` | `config.settings.local` | Local development, management commands |
+| `config/wsgi.py` | `config.settings.production` | Gunicorn in production |
+| `config/asgi.py` | `config.settings.production` | ASGI server in production |
+| `pyproject.toml` | `config.settings.test` | pytest |
 
 App-specific settings are prefixed with the project name to avoid collisions:
 
@@ -480,7 +496,9 @@ pytest-django with factory_boy. Configure in `pyproject.toml`:
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["test_*.py"]
-addopts = "--reuse-db --no-migrations -q"
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["apps/"]
@@ -521,7 +539,7 @@ Ruff for linting and formatting, ty for type checking. Both configured in `pypro
 
 ```toml
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 99
 
 [tool.ruff.lint]
@@ -529,10 +547,10 @@ select = ["E", "W", "F", "I", "B", "C4", "UP", "DJ", "S"]
 ignore = ["S101"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "accounts", "plans", "tasks", "attachments", "notifications"]
+known-first-party = ["apps"]
 
 [tool.ty]
-python-version = "3.13"
+python-version = "3.14"
 ```
 
 ```bash

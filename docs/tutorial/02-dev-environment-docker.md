@@ -214,7 +214,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      DJANGO_ENV: development
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DB_HOST: db
     depends_on:
       db:
@@ -255,7 +255,7 @@ services:
     command: uv run manage.py db_worker
     env_file: .env
     environment:
-      DJANGO_ENV: development
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DB_HOST: db
     depends_on:
       db:
@@ -349,7 +349,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      DJANGO_ENV: production
+      DJANGO_SETTINGS_MODULE: config.settings.production
       DB_HOST: db
     depends_on:
       db:
@@ -360,7 +360,7 @@ services:
     command: python manage.py db_worker
     env_file: .env
     environment:
-      DJANGO_ENV: production
+      DJANGO_SETTINGS_MODULE: config.settings.production
       DB_HOST: db
     depends_on:
       db:
@@ -370,7 +370,7 @@ services:
 Key differences from development:
 - **No `command` override on web** — uses the Dockerfile's `CMD` (gunicorn)
 - **No volume mounts** — the code is baked into the image at build time
-- **`DJANGO_ENV: production`** — activates the production settings (security headers, HTTPS, S3 storage, real email)
+- **`DJANGO_SETTINGS_MODULE: config.settings.production`** — explicitly selects the production settings module (security headers, HTTPS, S3 storage, real email). While `wsgi.py` already defaults to production, the worker uses `manage.py` which defaults to local — so this override is essential.
 
 We'll flesh out the production configuration in Chapter 18.
 

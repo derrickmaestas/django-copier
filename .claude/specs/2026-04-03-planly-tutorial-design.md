@@ -31,7 +31,7 @@ The tutorial uses a layer-by-layer approach — building one Django layer at a t
 - `django-admin startproject config .` — why `config` not `planly`, why `.` for flat structure
 - Restructure into the `apps/` directory pattern, add `sys.path` insertion in settings
 - Create app stubs: `python manage.py startapp <name>` for core, accounts, plans, tasks, attachments, notifications — then move them into `apps/`
-- Split settings: refactor the single `settings.py` into `config/settings/` package with `__init__.py` (environment router), `base.py`, `development.py`, `production.py`, `test.py`
+- Split settings: refactor the single `settings.py` into `config/settings/` package with `base.py`, `local.py`, `production.py`, `test.py` — each entry point sets `DJANGO_SETTINGS_MODULE` directly (no `__init__.py` router)
 - `pyproject.toml`: configure ruff, ty, pytest, coverage (Astral stack: uv + ruff + ty)
 - `.env.example` and `.gitignore`
 - `manage.py`, `wsgi.py`, `asgi.py` pointing to `config.settings`
@@ -47,8 +47,8 @@ The tutorial uses a layer-by-layer approach — building one Django layer at a t
 - Multi-stage `Dockerfile` using `python:3.14-slim-trixie` base image (why slim-trixie per pythonspeed.com best practices): builder stage (uv for dependency install, compile deps with gcc/libpq-dev) and runtime stage (slim image, non-root user, collectstatic)
 - Using uv inside Docker: `COPY --from=ghcr.io/astral-sh/uv` for fast, cached dependency installs
 - `compose.yaml` — base service definitions (db: postgres:17, redis: redis:7-alpine) with healthchecks
-- `compose.override.yaml` — development overrides: web service with volume mounts, `runserver`, debug ports, `DJANGO_ENV=development`; worker service for background tasks
-- `compose.prod.yaml` — production overrides: gunicorn, no volume mounts, collected static, `DJANGO_ENV=production`
+- `compose.override.yaml` — development overrides: web service with compose watch, `runserver`, debug ports, `DJANGO_SETTINGS_MODULE=config.settings.local`; worker service for background tasks
+- `compose.prod.yaml` — production overrides: gunicorn, no volume mounts, collected static, `DJANGO_SETTINGS_MODULE=config.settings.production`
 - `.dockerignore` to keep images lean
 - `cp .env.example .env` and configure for local Docker
 - `docker compose up` to start Postgres + Redis + Django
