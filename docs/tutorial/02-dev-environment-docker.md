@@ -65,15 +65,18 @@ RUN apt-get update && \
 ENV UV_PYTHON_INSTALL_DIR=/python
 RUN uv python install 3.14
 
+# Dev builds install all groups; production builds pass --no-dev
+ARG UV_INSTALL_ARGS="--no-dev"
+
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+    uv sync --locked --no-install-project $UV_INSTALL_ARGS
 
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --locked $UV_INSTALL_ARGS
 
 # ─── Stage 2: Runtime ────────────────────────────────────────
 FROM debian:trixie-slim
@@ -83,13 +86,17 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/* && \
-    addgroup --system planly && \
-    adduser --system --ingroup planly planly
+    groupadd --system planly && \
+    useradd --system --gid planly --no-create-home planly
+
+# Copy uv so dev/test can run `uv run` commands
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY --from=builder /python /python
 COPY --from=builder /app /app
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    UV_NO_CACHE=1
 
 USER planly
 EXPOSE 8000
@@ -123,16 +130,18 @@ This copies the uv binary directly from Astral's official image. No curl, no ins
 ### The two-phase dependency install
 
 ```dockerfile
+ARG UV_INSTALL_ARGS="--no-dev"
+
 # Phase 1: install dependencies only (cached)
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project --no-dev
+    uv sync --locked --no-install-project $UV_INSTALL_ARGS
 
 # Phase 2: copy code and install the project
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+    uv sync --locked $UV_INSTALL_ARGS
 ```
 
 This is the most important optimization in the Dockerfile. Dependencies change rarely; your code changes constantly. By installing dependencies in a separate layer *before* copying your code, Docker caches the dependency layer. When you change a Python file, only the second `uv sync` runs — saving minutes on each build.
@@ -140,8 +149,37 @@ This is the most important optimization in the Dockerfile. Dependencies change r
 Key flags:
 - `--locked` — uses `uv.lock` exactly, no resolution. Reproducible builds.
 - `--no-install-project` — first pass installs only dependencies, not your code
-- `--no-dev` — excludes dev/test dependencies from the production image
 - `--mount=type=cache` — persists uv's download cache between builds
+
+### One Dockerfile, two sets of dependencies
+
+```dockerfile
+ARG UV_INSTALL_ARGS="--no-dev"
+```
+
+A `Dockerfile` `ARG` is a build-time variable. The default (`--no-dev`) produces a lean production image: Django, psycopg, boto3 — nothing else. Development builds override it to pull in `pytest`, `factory-boy`, `ruff`, and friends:
+
+```yaml
+# compose.override.yaml
+services:
+  web:
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"
+```
+
+`uv` has three dependency group modes on `sync`:
+
+| Arg | What you get |
+|---|---|
+| `--no-dev` | Main dependencies only (production) |
+| *(default)* | Main + the `dev` group |
+| `--all-groups` | Main + every group in `pyproject.toml` (`dev`, `test`, `prod`) |
+
+We use `--all-groups` in dev because the same container runs the server, pytest, and lint — all three groups need to be present. Production stays minimal with `--no-dev`.
+
+The alternative — maintaining two separate Dockerfiles (`Dockerfile.dev`, `Dockerfile.prod`) — duplicates 90% of the logic and drifts over time. One file with a build arg keeps dev and prod in lockstep.
 
 ### Environment variables
 
@@ -155,13 +193,35 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 ### Non-root user
 
 ```dockerfile
-RUN addgroup --system planly && \
-    adduser --system --ingroup planly planly
+RUN groupadd --system planly && \
+    useradd --system --gid planly --no-create-home planly
 # ...
 USER planly
 ```
 
 Never run your application as root inside a container. If an attacker exploits a vulnerability in your app, they get root access to everything the container can reach. Running as a dedicated non-root user limits the blast radius.
+
+We use `groupadd` / `useradd` (from the `passwd` package, pre-installed in `debian:trixie-slim`) rather than the friendlier `addgroup` / `adduser` wrappers. Those wrappers live in the separate `adduser` package, which Debian dropped from slim images — installing it just to create one user would add ~1MB and a Perl dependency. `--system` creates a system user with a UID below 1000 (the convention for non-human accounts), and `--no-create-home` skips the home directory since the app runs out of `/app`.
+
+### `uv` in the runtime stage
+
+```dockerfile
+# Copy uv so dev/test can run `uv run` commands
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+```
+
+The builder stage uses `uv` to install dependencies, but the runtime stage normally wouldn't need it — the virtual environment is already on `PATH`, so `gunicorn config.wsgi` works without `uv`. We still copy the binary into the runtime image because development and test commands use `uv run manage.py …` and `uv run pytest …`. If `uv` weren't here, those commands would fail with "executable not found."
+
+`uv` is a ~40MB static Go-style binary with no runtime dependencies, so copying it into the runtime image is cheap. If you wanted a truly minimal production image, you could split this into a separate `dev` target stage — but for a tutorial project, one image that works for both is simpler.
+
+### `UV_NO_CACHE=1` in runtime
+
+```dockerfile
+ENV PATH="/app/.venv/bin:$PATH" \
+    UV_NO_CACHE=1
+```
+
+By default `uv` tries to write to `~/.cache/uv` — but the `planly` user has no home directory (`--no-create-home` above), so any `uv` invocation would fail with a permission error. Setting `UV_NO_CACHE=1` disables the cache entirely. This is fine at runtime: the dependencies are already installed in `/app/.venv`, so `uv run` just resolves the lockfile and executes — no downloads, no caching needed.
 
 ---
 
@@ -208,7 +268,10 @@ The `ports` mapping (`5432:5432`) lets you connect to Postgres from your host ma
 ```yaml
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"   # install dev + test + prod groups
     command: uv run manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
@@ -251,7 +314,10 @@ services:
           path: ./uv.lock
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"
     command: uv run manage.py db_worker
     env_file: .env
     environment:
