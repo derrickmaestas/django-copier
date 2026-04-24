@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(touch:*)",
@@ -21,10 +24,8 @@
       "Bash(DJANGO_ENV=test uv run pytest apps/core/tests/test_models.py -v)",
       "Bash(/c/Program Files/Docker/Docker/resources/bin/docker.exe compose:*)",
       "Bash(docker compose run:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(pwd -W)"
     ]
-  },
-  "env": {
-    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
   }
 }
