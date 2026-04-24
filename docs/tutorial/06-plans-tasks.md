@@ -816,7 +816,50 @@ import pytest
 from django.utils import timezone
 
 from apps.tasks.models import Task
-from apps.tasks.tests.factories import TaskFactory
+from apps.tasks.tests.factories import (
+    AssignmentFactory,
+    ChecklistItemFactory,
+    CommentFactory,
+    LabelFactory,
+    TaskFactory,
+)
+
+
+@pytest.mark.django_db
+class TestTaskStr:
+    def test_str(self):
+        task = TaskFactory(title="Fix login bug")
+        assert str(task) == "Fix login bug"
+
+
+@pytest.mark.django_db
+class TestAssignmentStr:
+    def test_str(self):
+        assignment = AssignmentFactory()
+        expected = f"{assignment.user} → {assignment.task}"
+        assert str(assignment) == expected
+
+
+@pytest.mark.django_db
+class TestChecklistItemStr:
+    def test_str(self):
+        item = ChecklistItemFactory(title="Write docs")
+        assert str(item) == "Write docs"
+
+
+@pytest.mark.django_db
+class TestLabelStr:
+    def test_str(self):
+        label = LabelFactory(name="Bug")
+        assert str(label) == "Bug"
+
+
+@pytest.mark.django_db
+class TestCommentStr:
+    def test_str(self):
+        comment = CommentFactory()
+        expected = f"Comment by {comment.created_by} on {comment.task}"
+        assert str(comment) == expected
 
 
 @pytest.mark.django_db
@@ -884,11 +927,13 @@ class TestTaskMarkComplete:
         assert reloaded.completed_at is not None
 ```
 
+**`__str__` tests** — one test per model, same pattern as Chapter 5. These are short because each `__str__` is a one-liner, but they're still worth writing: the formatting strings (`f"{user} → {task}"`, `f"Comment by {created_by} on {task}"`) are code we wrote, not behavior we inherited.
+
 **Testing `is_overdue`** — five test cases covering every branch: past due + incomplete (True), past due + completed (False), due today (False), future due (False), no due date (False). This is thorough property testing — every combination of inputs that could change the outcome.
 
 **Testing `mark_complete()`** — three tests: it sets progress, it sets the timestamp, and it actually persists to the database. The `refresh_from_db()` call reloads the object from the database, proving the save worked. The third test (`test_persists_to_database`) creates a fresh ORM instance from the database to double-check.
 
-**What we don't test** — `__str__` for `Task` would be trivial here (`return self.title`), but the plans app tests already demonstrate the pattern. We don't test field declarations, `auto_now` timestamps, or constraint enforcement — that's Django's job.
+**What we don't test** — field declarations, `auto_now` timestamps, `default` values, uniqueness constraints, or cascade behavior. Those are Django features configured declaratively; the framework's own test suite already covers them.
 
 ### Step 6: Task QuerySet Tests
 

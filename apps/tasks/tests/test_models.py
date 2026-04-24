@@ -4,7 +4,50 @@ import pytest
 from django.utils import timezone
 
 from apps.tasks.models import Task
-from apps.tasks.tests.factories import TaskFactory
+from apps.tasks.tests.factories import (
+    AssignmentFactory,
+    ChecklistItemFactory,
+    CommentFactory,
+    LabelFactory,
+    TaskFactory,
+)
+
+
+@pytest.mark.django_db
+class TestTaskStr:
+    def test_str(self):
+        task = TaskFactory(title="Fix login bug")
+        assert str(task) == "Fix login bug"
+
+
+@pytest.mark.django_db
+class TestAssignmentStr:
+    def test_str(self):
+        assignment = AssignmentFactory()
+        expected = f"{assignment.user} → {assignment.task}"
+        assert str(assignment) == expected
+
+
+@pytest.mark.django_db
+class TestChecklistItemStr:
+    def test_str(self):
+        item = ChecklistItemFactory(title="Write docs")
+        assert str(item) == "Write docs"
+
+
+@pytest.mark.django_db
+class TestLabelStr:
+    def test_str(self):
+        label = LabelFactory(name="Bug")
+        assert str(label) == "Bug"
+
+
+@pytest.mark.django_db
+class TestCommentStr:
+    def test_str(self):
+        comment = CommentFactory()
+        expected = f"Comment by {comment.created_by} on {comment.task}"
+        assert str(comment) == expected
 
 
 @pytest.mark.django_db

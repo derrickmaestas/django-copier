@@ -33,6 +33,7 @@ prod = [
 [tool.ruff]
 target-version = "py314"
 line-length = 99
+extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = [

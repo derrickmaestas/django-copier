@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from apps.accounts.models import Discipline, Membership, Team, User
+from apps.accounts.models import User
 from apps.accounts.tests.factories import (
     DisciplineFactory,
     MembershipFactory,

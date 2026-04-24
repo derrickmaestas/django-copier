@@ -129,7 +129,7 @@ Create `apps/accounts/tests/test_models.py` — tests for custom model behavior:
 ```python
 from django.test import TestCase
 
-from apps.accounts.models import Discipline, Membership, Team, User
+from apps.accounts.models import User
 from apps.accounts.tests.factories import (
     DisciplineFactory,
     MembershipFactory,
