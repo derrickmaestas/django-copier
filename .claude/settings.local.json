@@ -25,7 +25,9 @@
       "Bash(/c/Program Files/Docker/Docker/resources/bin/docker.exe compose:*)",
       "Bash(docker compose run:*)",
       "Bash(docker compose:*)",
-      "Bash(pwd -W)"
+      "Bash(pwd -W)",
+      "Bash(curl -sI http://localhost:8000/admin/)",
+      "Bash(curl -sI http://localhost:8000/admin/login/)"
     ]
   }
 }
