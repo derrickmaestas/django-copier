@@ -50,7 +50,7 @@ class Attachment(TimeStampedModel):
     )
     file = models.FileField(upload_to=attachment_upload_path)
     filename = models.CharField(max_length=255)
-    size_bytes = models.PositiveBigIntegerField()
+    size_bytes = models.PositiveBigIntegerField(default=0)
     content_type = models.CharField(max_length=100, blank=True)
 
     class Meta:
@@ -66,14 +66,26 @@ class Attachment(TimeStampedModel):
     def size_mb(self) -> float:
         return round(self.size_bytes / (1024 * 1024), 2)
 
+    def save(self, *args, **kwargs):
+        """Derive size_bytes from the uploaded file.
+
+        Reading `file.size` may trigger a backend stat (network call on S3),
+        so we do it once at save time and cache the result on the row.
+        """
+        if self.file:
+            self.size_bytes = self.file.size
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
         max_bytes = settings.PLANLY_MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
-        if self.size_bytes > max_bytes:
+        size = self.file.size if self.file else self.size_bytes
+        if size > max_bytes:
+            mb = round(size / (1024 * 1024), 2)
             raise ValidationError(
                 {
                     "file": (
-                        f"File is {self.size_mb} MB — "
+                        f"File is {mb} MB — "
                         f"exceeds the {settings.PLANLY_MAX_ATTACHMENT_SIZE_MB} MB limit."
                     )
                 }
@@ -99,13 +111,32 @@ We could always call `self.file.size` to get the size, but every call hits the s
 
 The `size_bytes` field uses `PositiveBigIntegerField` rather than `PositiveIntegerField` because `PositiveIntegerField` tops out at 2 GB. `BigInt` goes into the petabytes — overkill today, but it costs nothing and avoids a future migration if the limit ever gets raised.
 
+### Auto-deriving `size_bytes` in `save()`
+
+```python
+def save(self, *args, **kwargs):
+    if self.file:
+        self.size_bytes = self.file.size
+    super().save(*args, **kwargs)
+```
+
+`size_bytes` is a stored field, but callers shouldn't have to set it — they just hand us a file. Overriding `save()` to derive the value guarantees two things:
+
+1. **Callers can't forget it.** Any code path that creates an `Attachment` (admin upload, API endpoint, management command) gets the right size without having to remember to pass it.
+2. **It can't drift from the actual file.** If someone replaces `attachment.file` and saves, the size follows the file — there's no stale value to clean up.
+
+The field keeps `default=0` so the column has a valid value before `save()` runs — otherwise `full_clean()` would complain about a required field that hasn't been populated yet.
+
+Why store it instead of computing from `file.size` every read? Same reason as before: reading `file.size` on S3 is a network call. Storing at save time means every subsequent read is a cheap column fetch.
+
 ### Size Validation via `clean()`
 
 ```python
 def clean(self):
     super().clean()
     max_bytes = settings.PLANLY_MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
-    if self.size_bytes > max_bytes:
+    size = self.file.size if self.file else self.size_bytes
+    if size > max_bytes:
         raise ValidationError(...)
 ```
 
@@ -113,7 +144,9 @@ def clean(self):
 
 Reading the limit from `settings` (not hardcoding 25) means ops can raise or lower the limit via an environment variable without touching code.
 
-**Why not a `FileField` validator?** A `validators=[...]` callback has access to the file only, not the instance. The size comes from `self.size_bytes`, which lives on the model, so the check has to live on the model.
+**Why check `self.file.size` before `self.size_bytes`?** `clean()` runs *before* `save()`, so `size_bytes` hasn't been populated yet on a new upload. Reading from the file object catches oversized files before they ever reach the database. On a round-trip edit of an existing attachment, `self.file.size` still works (the file exists in storage), so the same check covers both paths.
+
+**Why not a `FileField` validator?** A `validators=[...]` callback has access to the file only, not the instance. Putting the check on `clean()` lets us read `settings.PLANLY_MAX_ATTACHMENT_SIZE_MB` and include both the actual and allowed sizes in the error message.
 
 ### `on_delete` Choices
 
@@ -401,7 +434,6 @@ class AttachmentFactory(DjangoModelFactory):
     task = factory.SubFactory(TaskFactory)
     uploaded_by = factory.SubFactory(UserFactory)
     filename = factory.Sequence(lambda n: f"file_{n}.txt")
-    size_bytes = 1024
     content_type = "text/plain"
     file = factory.LazyAttribute(
         lambda obj: SimpleUploadedFile(obj.filename, b"test content")
@@ -410,6 +442,8 @@ class AttachmentFactory(DjangoModelFactory):
 
 **`SimpleUploadedFile`** is Django's in-memory stand-in for a `TemporaryUploadedFile`. Tests shouldn't write to real disk — `SimpleUploadedFile` gives the model a file-like object that satisfies `FileField` without touching the filesystem.
 
+Note there's no `size_bytes` default on the factory — `save()` derives it from whatever file the factory supplies. If a test needs a specific size, it can override `file=` with a payload of the desired length.
+
 ### Attachment tests
 
 Create `apps/attachments/tests/test_models.py`:
@@ -417,6 +451,7 @@ Create `apps/attachments/tests/test_models.py`:
 ```python
 import pytest
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 
 from apps.attachments.tests.factories import AttachmentFactory
@@ -430,13 +465,31 @@ class TestAttachmentStr:
 
 
 @pytest.mark.django_db
+class TestAttachmentSave:
+    def test_size_bytes_auto_set_from_file(self):
+        payload = b"x" * 4096
+        attachment = AttachmentFactory(
+            file=SimpleUploadedFile("data.bin", payload),
+        )
+        assert attachment.size_bytes == len(payload)
+
+    def test_size_bytes_refreshes_when_file_changes(self):
+        attachment = AttachmentFactory(file=SimpleUploadedFile("a.bin", b"a" * 100))
+        assert attachment.size_bytes == 100
+
+        attachment.file = SimpleUploadedFile("b.bin", b"b" * 500)
+        attachment.save()
+        assert attachment.size_bytes == 500
+
+
+@pytest.mark.django_db
 class TestAttachmentSizeMb:
     def test_converts_bytes_to_mb(self):
-        attachment = AttachmentFactory(size_bytes=5 * 1024 * 1024)
+        attachment = AttachmentFactory.build(size_bytes=5 * 1024 * 1024)
         assert attachment.size_mb == 5.0
 
     def test_rounds_to_two_decimals(self):
-        attachment = AttachmentFactory(size_bytes=1_500_000)
+        attachment = AttachmentFactory.build(size_bytes=1_500_000)
         assert attachment.size_mb == 1.43
 
 
@@ -444,16 +497,26 @@ class TestAttachmentSizeMb:
 class TestAttachmentCleanSizeLimit:
     @override_settings(PLANLY_MAX_ATTACHMENT_SIZE_MB=1)
     def test_rejects_oversized_file(self):
-        attachment = AttachmentFactory.build(size_bytes=2 * 1024 * 1024)
+        attachment = AttachmentFactory.build(
+            file=SimpleUploadedFile("big.bin", b"x" * (2 * 1024 * 1024)),
+        )
         with pytest.raises(ValidationError) as exc:
             attachment.clean()
         assert "exceeds" in str(exc.value)
 
     @override_settings(PLANLY_MAX_ATTACHMENT_SIZE_MB=5)
     def test_accepts_file_at_limit(self):
-        attachment = AttachmentFactory.build(size_bytes=5 * 1024 * 1024)
+        attachment = AttachmentFactory.build(
+            file=SimpleUploadedFile("ok.bin", b"x" * (5 * 1024 * 1024)),
+        )
         attachment.clean()  # should not raise
 ```
+
+**`TestAttachmentSave`** covers the new auto-set behavior directly: create with a known-size payload, assert the stored `size_bytes` matches; then swap the file and confirm `size_bytes` updates on re-save.
+
+**`TestAttachmentSizeMb`** uses `.build()` because `save()` would overwrite the explicit `size_bytes` by deriving it from the 12-byte `SimpleUploadedFile`. `build()` skips the save and lets us test the property in isolation.
+
+**`TestAttachmentCleanSizeLimit`** now constructs an actual oversized `SimpleUploadedFile`, because `clean()` reads from `self.file.size` rather than a pre-populated `size_bytes`.
 
 **`@override_settings`** temporarily changes settings for a test. The limit is read from `settings.PLANLY_MAX_ATTACHMENT_SIZE_MB` at call time, so overriding it in the test lets us check the validator without relying on whatever value is configured globally.
 

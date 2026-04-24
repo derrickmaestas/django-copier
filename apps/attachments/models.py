@@ -26,7 +26,7 @@ class Attachment(TimeStampedModel):
     )
     file = models.FileField(upload_to=attachment_upload_path)
     filename = models.CharField(max_length=255)
-    size_bytes = models.PositiveBigIntegerField()
+    size_bytes = models.PositiveBigIntegerField(default=0)
     content_type = models.CharField(max_length=100, blank=True)
 
     class Meta:
@@ -42,14 +42,26 @@ class Attachment(TimeStampedModel):
     def size_mb(self) -> float:
         return round(self.size_bytes / (1024 * 1024), 2)
 
+    def save(self, *args, **kwargs):
+        """Derive size_bytes from the uploaded file.
+
+        Reading `file.size` may trigger a backend stat (network call on S3),
+        so we do it once at save time and cache the result on the row.
+        """
+        if self.file:
+            self.size_bytes = self.file.size
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
         max_bytes = settings.PLANLY_MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
-        if self.size_bytes > max_bytes:
+        size = self.file.size if self.file else self.size_bytes
+        if size > max_bytes:
+            mb = round(size / (1024 * 1024), 2)
             raise ValidationError(
                 {
                     "file": (
-                        f"File is {self.size_mb} MB — "
+                        f"File is {mb} MB — "
                         f"exceeds the {settings.PLANLY_MAX_ATTACHMENT_SIZE_MB} MB limit."
                     )
                 }

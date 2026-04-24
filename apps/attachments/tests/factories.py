@@ -14,7 +14,6 @@ class AttachmentFactory(DjangoModelFactory):
     task = factory.SubFactory(TaskFactory)
     uploaded_by = factory.SubFactory(UserFactory)
     filename = factory.Sequence(lambda n: f"file_{n}.txt")
-    size_bytes = 1024
     content_type = "text/plain"
     file = factory.LazyAttribute(
         lambda obj: SimpleUploadedFile(obj.filename, b"test content")
