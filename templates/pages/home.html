@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Planly{% endblock %}
+
+{% block content %}
+<h1>Planly</h1>
+<p>A simple, fast task planner for small teams.</p>
+
+{% if user.is_authenticated %}
+  <p><a href="{% url 'plans:plan-list' %}">Go to your plans →</a></p>
+{% else %}
+  <p><a href="{% url 'login' %}">Log in</a> to get started.</p>
+{% endif %}
+{% endblock %}

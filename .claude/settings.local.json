@@ -27,7 +27,12 @@
       "Bash(docker compose:*)",
       "Bash(pwd -W)",
       "Bash(curl -sI http://localhost:8000/admin/)",
-      "Bash(curl -sI http://localhost:8000/admin/login/)"
+      "Bash(curl -sI http://localhost:8000/admin/login/)",
+      "Bash(uvx ruff *)",
+      "Bash(curl -s -o /dev/null -w \"home: %{http_code}\\\\n\" http://localhost:8000/)",
+      "Bash(curl -s -o /dev/null -w \"admin: %{http_code}\\\\n\" http://localhost:8000/admin/)",
+      "Bash(curl -s -o /dev/null -w \"login: %{http_code}\\\\n\" http://localhost:8000/accounts/login/)",
+      "Bash(curl -s -o /dev/null -w \"404 preview: %{http_code}\\\\n\" http://localhost:8000/404/)"
     ]
   }
 }

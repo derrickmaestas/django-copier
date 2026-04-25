@@ -17,6 +17,11 @@ load_dotenv(BASE_DIR / ".env", override=False)
 # ──────────────────────────────────────────────
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "")
 
+# URL prefix for the Django admin. Defaults to "admin/" for local dev; in
+# production set DJANGO_ADMIN_URL to a hard-to-guess path so the admin login
+# page isn't sitting at a well-known URL for bots to hammer.
+ADMIN_URL = os.environ.get("DJANGO_ADMIN_URL", "admin/")
+
 # ──────────────────────────────────────────────
 # Application definition
 # ──────────────────────────────────────────────

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Plans — Planly{% endblock %}
+
+{% block content %}
+<h1>Your plans</h1>
+
+<p><a href="{% url 'plans:plan-create' %}">New plan</a></p>
+
+{% if plans %}
+  <ul>
+    {% for plan in plans %}
+      <li>
+        <a href="{% url 'plans:plan-detail' plan.pk %}">{{ plan.title }}</a>
+        — {{ plan.completed_task_count }} / {{ plan.task_count }} tasks complete
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No plans yet. <a href="{% url 'plans:plan-create' %}">Create your first plan</a>.</p>
+{% endif %}
+{% endblock %}

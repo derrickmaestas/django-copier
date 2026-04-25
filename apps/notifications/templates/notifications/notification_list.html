@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications — Planly{% endblock %}
+
+{% block content %}
+<h1>Notifications</h1>
+
+{% if notifications %}
+  <form action="{% url 'notifications:notification-mark-all-read' %}" method="post">
+    {% csrf_token %}
+    <button type="submit">Mark all as read</button>
+  </form>
+
+  <ul>
+    {% for n in notifications %}
+      <li{% if not n.is_read %} style="font-weight:bold"{% endif %}>
+        {{ n.actor|default:"Someone" }} {{ n.get_verb_display|lower }} — {{ n.created_at|timesince }} ago
+        {% if not n.is_read %}
+          <form action="{% url 'notifications:notification-mark-read' n.pk %}" method="post" style="display:inline">
+            {% csrf_token %}
+            <button type="submit">Mark read</button>
+          </form>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if is_paginated %}
+    <nav>
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">← Previous</a>
+      {% endif %}
+      Page {{ page_obj.number }} of {{ paginator.num_pages }}
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">Next →</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% else %}
+  <p>No notifications.</p>
+{% endif %}
+{% endblock %}

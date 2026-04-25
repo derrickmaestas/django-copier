@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ plan.title }} — Planly{% endblock %}
+
+{% block content %}
+<h1>Delete plan?</h1>
+<p>Are you sure you want to delete <strong>{{ plan.title }}</strong>? This will remove all of its buckets and tasks.</p>
+
+<form method="post">
+  {% csrf_token %}
+  <button type="submit">Yes, delete</button>
+  <a href="{% url 'plans:plan-detail' plan.pk %}">Cancel</a>
+</form>
+{% endblock %}

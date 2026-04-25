@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit task{% else %}New task{% endif %} — Planly{% endblock %}
+
+{% block content %}
+<h1>{% if object %}Edit task{% else %}New task{% endif %}</h1>
+
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Save</button>
+  {% if object %}
+    <a href="{% url 'tasks:task-detail' object.pk %}">Cancel</a>
+  {% else %}
+    <a href="{% url 'plans:plan-detail' view.bucket.plan_id %}">Cancel</a>
+  {% endif %}
+</form>
+{% endblock %}

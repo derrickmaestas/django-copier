@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ plan.title }} — Planly{% endblock %}
+
+{% block content %}
+<p><a href="{% url 'plans:plan-list' %}">← All plans</a></p>
+
+<h1>{{ plan.title }}</h1>
+{% if plan.description %}<p>{{ plan.description }}</p>{% endif %}
+
+<p>
+  <a href="{% url 'plans:plan-update' plan.pk %}">Edit plan</a>
+  · <a href="{% url 'plans:plan-delete' plan.pk %}">Delete plan</a>
+</p>
+
+<h2>Buckets</h2>
+{% for bucket in plan.buckets.all %}
+  <section>
+    <h3>{{ bucket.title }}</h3>
+    <p><a href="{% url 'tasks:task-create' bucket.pk %}">+ New task</a></p>
+    {% if bucket.tasks.all %}
+      <ul>
+        {% for task in bucket.tasks.all %}
+          <li>
+            <a href="{% url 'tasks:task-detail' task.pk %}">{{ task.title }}</a>
+            {% if task.is_overdue %}<strong>(overdue)</strong>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p><em>No tasks in this bucket.</em></p>
+    {% endif %}
+  </section>
+{% empty %}
+  <p>No buckets yet.</p>
+{% endfor %}
+{% endblock %}

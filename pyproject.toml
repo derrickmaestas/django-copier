@@ -63,11 +63,13 @@ invalid-assignment = "error"
 unresolved-attribute = "error"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings.test"
+# Use --ds (not DJANGO_SETTINGS_MODULE here) so pytest's choice of test
+# settings beats any DJANGO_SETTINGS_MODULE env var inherited from the
+# container — pytest-django's --ds flag takes precedence over the env var.
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--reuse-db --no-migrations -q --import-mode=importlib"
+addopts = "--ds=config.settings.test --reuse-db --no-migrations -q --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["apps/"]
