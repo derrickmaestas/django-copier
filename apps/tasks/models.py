@@ -4,7 +4,12 @@ from django.utils import timezone
 
 from apps.core.models import OrderedModel, TimeStampedModel
 
-from .querysets import TaskQuerySet
+from .querysets import (
+    ChecklistItemQuerySet,
+    CommentQuerySet,
+    LabelQuerySet,
+    TaskQuerySet,
+)
 
 
 class Task(TimeStampedModel):
@@ -119,6 +124,8 @@ class ChecklistItem(TimeStampedModel, OrderedModel):
     title = models.CharField(max_length=255)
     is_completed = models.BooleanField(default=False)
 
+    objects = ChecklistItemQuerySet.as_manager()
+
     class Meta(OrderedModel.Meta):
         constraints = [
             models.UniqueConstraint(
@@ -146,6 +153,8 @@ class Label(TimeStampedModel):
     name = models.CharField(max_length=255)
     color = models.CharField(max_length=7, default="#6B7280")  # hex color
 
+    objects = LabelQuerySet.as_manager()
+
     class Meta:
         ordering = ["name"]
         constraints = [
@@ -170,6 +179,8 @@ class Comment(TimeStampedModel):
         related_name="comments",
     )
     body = models.TextField()
+
+    objects = CommentQuerySet.as_manager()
 
     class Meta:
         ordering = ["created_at"]

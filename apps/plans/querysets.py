@@ -1,5 +1,7 @@
 from django.db import models
 
+from apps.core.querysets import OrderedQuerySet
+
 
 class PlanQuerySet(models.QuerySet):
     """Custom queryset for Plan with team-scoped access and annotation helpers."""
@@ -21,3 +23,11 @@ class PlanQuerySet(models.QuerySet):
                 distinct=True,
             ),
         )
+
+
+class BucketQuerySet(OrderedQuerySet):
+    """Custom queryset for Bucket with team-scoped access."""
+
+    def for_user(self, user):
+        """Return buckets in plans visible to this user through team membership."""
+        return self.filter(plan__team__memberships__user=user).distinct()

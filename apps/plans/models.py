@@ -3,7 +3,7 @@ from django.db import models
 
 from apps.core.models import OrderedModel, TimeStampedModel
 
-from .querysets import PlanQuerySet
+from .querysets import BucketQuerySet, PlanQuerySet
 
 
 class Plan(TimeStampedModel):
@@ -56,6 +56,8 @@ class Bucket(TimeStampedModel, OrderedModel):
 
     plan = models.ForeignKey(Plan, on_delete=models.CASCADE, related_name="buckets")
     title = models.CharField(max_length=255)
+
+    objects = BucketQuerySet.as_manager()
 
     class Meta(OrderedModel.Meta):
         constraints = [

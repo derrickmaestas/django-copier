@@ -14,9 +14,17 @@
 </p>
 
 <h2>Buckets</h2>
+<p><a href="{% url 'plans:bucket-create' plan.pk %}">+ New bucket</a></p>
+
 {% for bucket in plan.buckets.all %}
   <section>
-    <h3>{{ bucket.title }}</h3>
+    <h3>
+      {{ bucket.title }}
+      <small>
+        <a href="{% url 'plans:bucket-update' bucket.pk %}">edit</a>
+        · <a href="{% url 'plans:bucket-delete' bucket.pk %}">delete</a>
+      </small>
+    </h3>
     <p><a href="{% url 'tasks:task-create' bucket.pk %}">+ New task</a></p>
     {% if bucket.tasks.all %}
       <ul>
@@ -32,6 +40,6 @@
     {% endif %}
   </section>
 {% empty %}
-  <p>No buckets yet.</p>
+  <p>No buckets yet. <a href="{% url 'plans:bucket-create' plan.pk %}">Create the first one</a>.</p>
 {% endfor %}
 {% endblock %}

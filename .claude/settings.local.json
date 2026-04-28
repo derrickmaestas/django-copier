@@ -32,7 +32,10 @@
       "Bash(curl -s -o /dev/null -w \"home: %{http_code}\\\\n\" http://localhost:8000/)",
       "Bash(curl -s -o /dev/null -w \"admin: %{http_code}\\\\n\" http://localhost:8000/admin/)",
       "Bash(curl -s -o /dev/null -w \"login: %{http_code}\\\\n\" http://localhost:8000/accounts/login/)",
-      "Bash(curl -s -o /dev/null -w \"404 preview: %{http_code}\\\\n\" http://localhost:8000/404/)"
+      "Bash(curl -s -o /dev/null -w \"404 preview: %{http_code}\\\\n\" http://localhost:8000/404/)",
+      "Bash(git diff *)",
+      "Bash(cat apps/plans/forms.py apps/tasks/forms.py apps/plans/tests/test_forms.py apps/tasks/tests/test_forms.py)",
+      "Read(//tmp/**)"
     ]
   }
 }

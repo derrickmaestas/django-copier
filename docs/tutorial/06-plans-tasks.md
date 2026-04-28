@@ -413,8 +413,8 @@ from django.utils import timezone
 class TaskQuerySet(models.QuerySet):
     """Custom queryset for Task with scoping, filtering, and annotation helpers."""
 
-    def for_user(self, user):
-        """Return tasks assigned to this user."""
+    def assigned_to(self, user):
+        """Return tasks the user is explicitly assigned to."""
         return self.filter(assignments__user=user).distinct()
 
     def overdue(self):
@@ -442,7 +442,7 @@ class TaskQuerySet(models.QuerySet):
         )
 ```
 
-**`for_user()`** — similar to `PlanQuerySet.for_user()`, but scoped through the `Assignment` through model. Returns all tasks where this user has an assignment record.
+**`assigned_to()`** — distinct from `PlanQuerySet.for_user()` (which is membership-scoped). `assigned_to(user)` is the narrower set: tasks where the user has an explicit `Assignment`. We'll add a separate `for_user()` method for membership-scoped access in Chapter 10 when the views start needing it.
 
 **`overdue()`** — returns incomplete tasks past their due date. Uses `timezone.now().date()` (not `datetime.date.today()`) to respect the `TIME_ZONE` setting.
 
@@ -950,13 +950,13 @@ from apps.tasks.tests.factories import AssignmentFactory, ChecklistItemFactory, 
 
 
 @pytest.mark.django_db
-class TestTaskQuerySetForUser:
-    """TaskQuerySet.for_user() returns tasks assigned to a user."""
+class TestTaskQuerySetAssignedTo:
+    """TaskQuerySet.assigned_to() returns tasks the user is explicitly assigned to."""
 
     def test_returns_assigned_tasks(self):
         assignment = AssignmentFactory()
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert assignment.task in result
 
@@ -964,7 +964,7 @@ class TestTaskQuerySetForUser:
         assignment = AssignmentFactory()
         other_task = TaskFactory()
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert other_task not in result
 
@@ -974,7 +974,7 @@ class TestTaskQuerySetForUser:
         # Add a second assignee to the same task
         AssignmentFactory(task=assignment.task)
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert result.filter(pk=assignment.task.pk).count() == 1
 

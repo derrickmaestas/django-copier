@@ -28,4 +28,43 @@
     <button type="submit">Mark complete</button>
   </form>
 {% endif %}
+
+<h2>Checklist</h2>
+{% if task.checklist_items.all %}
+  <ul>
+    {% for item in task.checklist_items.all %}
+      <li>
+        <form action="{% url 'tasks:checklist-item-toggle' item.pk %}" method="post" style="display:inline">
+          {% csrf_token %}
+          <button type="submit">{% if item.is_completed %}☑{% else %}☐{% endif %}</button>
+        </form>
+        {% if item.is_completed %}<s>{{ item.title }}</s>{% else %}{{ item.title }}{% endif %}
+        <form action="{% url 'tasks:checklist-item-delete' item.pk %}" method="post" style="display:inline">
+          {% csrf_token %}
+          <button type="submit">×</button>
+        </form>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+<form action="{% url 'tasks:checklist-item-add' task.pk %}" method="post">
+  {% csrf_token %}
+  <input type="text" name="title" placeholder="New checklist item" required>
+  <button type="submit">Add</button>
+</form>
+
+<h2>Comments</h2>
+{% for comment in task.comments.all %}
+  <article>
+    <p><strong>{{ comment.created_by|default:"Someone" }}</strong> — {{ comment.created_at|timesince }} ago</p>
+    <p>{{ comment.body|linebreaks }}</p>
+  </article>
+{% empty %}
+  <p><em>No comments yet.</em></p>
+{% endfor %}
+<form action="{% url 'tasks:comment-add' task.pk %}" method="post">
+  {% csrf_token %}
+  <p><textarea name="body" rows="3" placeholder="Add a comment" required></textarea></p>
+  <button type="submit">Post</button>
+</form>
 {% endblock %}

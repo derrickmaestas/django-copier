@@ -8,13 +8,13 @@ from apps.tasks.tests.factories import AssignmentFactory, ChecklistItemFactory, 
 
 
 @pytest.mark.django_db
-class TestTaskQuerySetForUser:
-    """TaskQuerySet.for_user() returns tasks assigned to a user."""
+class TestTaskQuerySetAssignedTo:
+    """TaskQuerySet.assigned_to() returns tasks the user is explicitly assigned to."""
 
     def test_returns_assigned_tasks(self):
         assignment = AssignmentFactory()
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert assignment.task in result
 
@@ -22,7 +22,7 @@ class TestTaskQuerySetForUser:
         assignment = AssignmentFactory()
         other_task = TaskFactory()
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert other_task not in result
 
@@ -32,7 +32,7 @@ class TestTaskQuerySetForUser:
         # Add a second assignee to the same task
         AssignmentFactory(task=assignment.task)
 
-        result = Task.objects.for_user(assignment.user)
+        result = Task.objects.assigned_to(assignment.user)
 
         assert result.filter(pk=assignment.task.pk).count() == 1
 
