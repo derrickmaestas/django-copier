@@ -3,43 +3,94 @@
 {% block title %}{{ plan.title }} — Planly{% endblock %}
 
 {% block content %}
-<p><a href="{% url 'plans:plan-list' %}">← All plans</a></p>
+<div class="mb-4">
+  <a href="{% url 'plans:plan-list' %}"
+     class="text-sm text-slate-600 hover:text-slate-900">← All plans</a>
+</div>
 
-<h1>{{ plan.title }}</h1>
-{% if plan.description %}<p>{{ plan.description }}</p>{% endif %}
-
-<p>
-  <a href="{% url 'plans:plan-update' plan.pk %}">Edit plan</a>
-  · <a href="{% url 'plans:plan-delete' plan.pk %}">Delete plan</a>
-</p>
-
-<h2>Buckets</h2>
-<p><a href="{% url 'plans:bucket-create' plan.pk %}">+ New bucket</a></p>
-
-{% for bucket in plan.buckets.all %}
-  <section>
-    <h3>
-      {{ bucket.title }}
-      <small>
-        <a href="{% url 'plans:bucket-update' bucket.pk %}">edit</a>
-        · <a href="{% url 'plans:bucket-delete' bucket.pk %}">delete</a>
-      </small>
-    </h3>
-    <p><a href="{% url 'tasks:task-create' bucket.pk %}">+ New task</a></p>
-    {% if bucket.tasks.all %}
-      <ul>
-        {% for task in bucket.tasks.all %}
-          <li>
-            <a href="{% url 'tasks:task-detail' task.pk %}">{{ task.title }}</a>
-            {% if task.is_overdue %}<strong>(overdue)</strong>{% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p><em>No tasks in this bucket.</em></p>
+<header class="mb-6 flex flex-wrap items-start justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">{{ plan.title }}</h1>
+    {% if plan.description %}
+      <p class="mt-1 text-sm text-slate-600 max-w-2xl">{{ plan.description }}</p>
     {% endif %}
-  </section>
-{% empty %}
-  <p>No buckets yet. <a href="{% url 'plans:bucket-create' plan.pk %}">Create the first one</a>.</p>
-{% endfor %}
+  </div>
+  <div class="flex items-center gap-3 text-sm">
+    <a href="{% url 'plans:plan-update' plan.pk %}"
+       class="text-slate-600 hover:text-slate-900">Edit</a>
+    <span class="text-slate-300">·</span>
+    <a href="{% url 'plans:plan-delete' plan.pk %}"
+       class="text-red-600 hover:text-red-700">Delete</a>
+  </div>
+</header>
+
+{# Horizontal-scroll kanban board — each bucket is a column. #}
+<div class="overflow-x-auto pb-4 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+  <div class="flex gap-4 items-start min-w-max">
+
+    {% for bucket in plan.buckets.all %}
+      <section class="flex flex-col w-72 shrink-0 bg-slate-100 rounded-lg p-3">
+        <header class="flex items-start justify-between gap-2 mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 truncate">
+            {{ bucket.title }}
+            <span class="ml-1 text-xs font-normal text-slate-500">
+              · {{ bucket.tasks.count }}
+            </span>
+          </h3>
+          <div class="flex items-center gap-1 text-xs text-slate-500 shrink-0">
+            <a href="{% url 'plans:bucket-update' bucket.pk %}"
+               class="hover:text-slate-900">edit</a>
+            <span>·</span>
+            <a href="{% url 'plans:bucket-delete' bucket.pk %}"
+               class="hover:text-red-600">delete</a>
+          </div>
+        </header>
+
+        <div class="flex flex-col gap-2 mb-2">
+          {% for task in bucket.tasks.all %}
+            <a href="{% url 'tasks:task-detail' task.pk %}"
+               class="block bg-white rounded-md p-3 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow transition">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-sm font-medium text-slate-900 leading-snug">
+                  {{ task.title }}
+                </p>
+                {% if task.progress == 100 %}
+                  <span class="shrink-0 inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">✓</span>
+                {% elif task.is_overdue %}
+                  <span class="shrink-0 inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">late</span>
+                {% endif %}
+              </div>
+              {% if task.due_date %}
+                <p class="mt-1 text-xs text-slate-500">Due {{ task.due_date }}</p>
+              {% endif %}
+            </a>
+          {% empty %}
+            <p class="text-xs text-slate-500 italic px-1">No tasks</p>
+          {% endfor %}
+        </div>
+
+        <a href="{% url 'tasks:task-create' bucket.pk %}"
+           class="text-xs text-slate-500 hover:text-indigo-600 px-1 py-1">
+          + New task
+        </a>
+      </section>
+    {% empty %}
+      <div class="rounded-lg border-2 border-dashed border-slate-300 p-12 text-center w-full max-w-md">
+        <p class="text-slate-600">No buckets yet.</p>
+        <a href="{% url 'plans:bucket-create' plan.pk %}"
+           class="mt-3 inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+          Create the first bucket
+        </a>
+      </div>
+    {% endfor %}
+
+    {% if plan.buckets.exists %}
+      <a href="{% url 'plans:bucket-create' plan.pk %}"
+         class="flex items-center justify-center w-72 shrink-0 bg-slate-50 rounded-lg p-3 border-2 border-dashed border-slate-300 text-sm text-slate-500 hover:border-indigo-400 hover:text-indigo-600 transition min-h-[100px]">
+        + New bucket
+      </a>
+    {% endif %}
+
+  </div>
+</div>
 {% endblock %}

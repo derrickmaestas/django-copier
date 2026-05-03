@@ -33,4 +33,20 @@ urlpatterns = [
         name="checklist-item-delete",
     ),
     path("<int:task_pk>/comments/add/", views.comment_add, name="comment-add"),
+    path("<int:pk>/edit-title/", views.task_edit_title, name="task-edit-title"),
+    path(
+        "<int:pk>/assignees/picker/",
+        views.task_assignee_picker,
+        name="task-assignee-picker",
+    ),
+    path(
+        "<int:pk>/assignees/<int:user_pk>/assign/",
+        views.task_assign,
+        name="task-assign",
+    ),
+    path(
+        "<int:pk>/assignees/<int:user_pk>/unassign/",
+        views.task_unassign,
+        name="task-unassign",
+    ),
 ]

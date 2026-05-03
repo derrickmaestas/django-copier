@@ -36,6 +36,10 @@ INSTALLED_APPS = [
     # Third-party
     "django_extensions",
     "storages",
+    "django_tailwind_cli",
+    "template_partials",
+    "crispy_forms",
+    "crispy_tailwind",
     # Planly apps
     "apps.core",
     "apps.accounts",
@@ -96,6 +100,10 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # ──────────────────────────────────────────────
 TEMPLATES = [
     {
+        # Plain Django backend — django-template-partials wraps the loaders
+        # via its AppConfig.ready(), so just having "template_partials" in
+        # INSTALLED_APPS makes the {% partialdef %} / {% partial %} tags
+        # available in every template without an explicit {% load partials %}.
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
@@ -136,6 +144,24 @@ TASKS = {
         "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
     }
 }
+
+# ──────────────────────────────────────────────
+# Tailwind (django-tailwind-cli)
+# ──────────────────────────────────────────────
+# Use the standalone tailwindcss binary we install at /usr/local/bin/
+# in the Dockerfile, rather than letting the package auto-download it
+# at runtime (the planly user has no writable home directory for the
+# default download path).
+TAILWIND_CLI_USE_SYSTEM_BINARY = True
+TAILWIND_CLI_AUTOMATIC_DOWNLOAD = False
+TAILWIND_CLI_SRC_CSS = "static/css/source.css"
+TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
+
+# ──────────────────────────────────────────────
+# Crispy Forms
+# ──────────────────────────────────────────────
+CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
+CRISPY_TEMPLATE_PACK = "tailwind"
 
 # ──────────────────────────────────────────────
 # Planly-specific settings

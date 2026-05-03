@@ -3,16 +3,11 @@
 {% block title %}{% if object %}Edit task{% else %}New task{% endif %} — Planly{% endblock %}
 
 {% block content %}
-<h1>{% if object %}Edit task{% else %}New task{% endif %}</h1>
-
-<form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Save</button>
-  {% if object %}
-    <a href="{% url 'tasks:task-detail' object.pk %}">Cancel</a>
-  {% else %}
-    <a href="{% url 'plans:plan-detail' view.bucket.plan_id %}">Cancel</a>
-  {% endif %}
-</form>
+{% if object %}
+  {% url 'tasks:task-detail' object.pk as cancel_url %}
+  {% include "partials/_form_card.html" with heading="Edit task" cancel_url=cancel_url %}
+{% else %}
+  {% url 'plans:plan-detail' view.bucket.plan_id as cancel_url %}
+  {% include "partials/_form_card.html" with heading="New task" cancel_url=cancel_url %}
+{% endif %}
 {% endblock %}

@@ -3,22 +3,36 @@
 {% block title %}Notifications — Planly{% endblock %}
 
 {% block content %}
-<h1>Notifications</h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-slate-900">Notifications</h1>
+  {% if notifications %}
+    <form action="{% url 'notifications:notification-mark-all-read' %}" method="post">
+      {% csrf_token %}
+      <button type="submit"
+              class="text-sm text-indigo-600 hover:text-indigo-700">
+        Mark all as read
+      </button>
+    </form>
+  {% endif %}
+</div>
 
 {% if notifications %}
-  <form action="{% url 'notifications:notification-mark-all-read' %}" method="post">
-    {% csrf_token %}
-    <button type="submit">Mark all as read</button>
-  </form>
-
-  <ul>
+  <ul class="divide-y divide-slate-200 rounded-lg bg-white shadow-sm border border-slate-200">
     {% for n in notifications %}
-      <li{% if not n.is_read %} style="font-weight:bold"{% endif %}>
-        {{ n.actor|default:"Someone" }} {{ n.get_verb_display|lower }} — {{ n.created_at|timesince }} ago
+      <li class="flex items-start justify-between gap-4 p-4 {% if not n.is_read %}bg-indigo-50/40{% endif %}">
+        <div class="text-sm">
+          <p class="{% if not n.is_read %}font-medium text-slate-900{% else %}text-slate-700{% endif %}">
+            {{ n.actor|default:"Someone" }} {{ n.get_verb_display|lower }}
+          </p>
+          <p class="mt-0.5 text-xs text-slate-500">{{ n.created_at|timesince }} ago</p>
+        </div>
         {% if not n.is_read %}
-          <form action="{% url 'notifications:notification-mark-read' n.pk %}" method="post" style="display:inline">
+          <form action="{% url 'notifications:notification-mark-read' n.pk %}" method="post">
             {% csrf_token %}
-            <button type="submit">Mark read</button>
+            <button type="submit"
+                    class="shrink-0 text-xs text-indigo-600 hover:text-indigo-700">
+              Mark read
+            </button>
           </form>
         {% endif %}
       </li>
@@ -26,17 +40,27 @@
   </ul>
 
   {% if is_paginated %}
-    <nav>
-      {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}">← Previous</a>
-      {% endif %}
-      Page {{ page_obj.number }} of {{ paginator.num_pages }}
-      {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}">Next →</a>
-      {% endif %}
+    <nav class="mt-6 flex items-center justify-between text-sm">
+      <div>
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}"
+             class="text-indigo-600 hover:text-indigo-700">← Previous</a>
+        {% endif %}
+      </div>
+      <span class="text-slate-500">
+        Page {{ page_obj.number }} of {{ paginator.num_pages }}
+      </span>
+      <div>
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}"
+             class="text-indigo-600 hover:text-indigo-700">Next →</a>
+        {% endif %}
+      </div>
     </nav>
   {% endif %}
 {% else %}
-  <p>No notifications.</p>
+  <div class="rounded-lg border-2 border-dashed border-slate-300 p-12 text-center">
+    <p class="text-slate-600">No notifications.</p>
+  </div>
 {% endif %}
 {% endblock %}

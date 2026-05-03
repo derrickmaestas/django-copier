@@ -35,7 +35,19 @@
       "Bash(curl -s -o /dev/null -w \"404 preview: %{http_code}\\\\n\" http://localhost:8000/404/)",
       "Bash(git diff *)",
       "Bash(cat apps/plans/forms.py apps/tasks/forms.py apps/plans/tests/test_forms.py apps/tasks/tests/test_forms.py)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"plans \\(no auth\\): %{http_code}\\\\n\" http://localhost:8000/plans/)",
+      "Bash(curl -s -o /dev/null -w \"task-detail \\(bogus pk, no auth\\): %{http_code}\\\\n\" http://localhost:8000/tasks/99999/)",
+      "Bash(curl -fsSL -o static/vendor/htmx.min.js https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose up -d tailwind)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose exec web cat /app/templates/base.html)",
+      "Bash(MSYS_NO_PATHCONV=1 docker compose cp *)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -o /dev/null -w \"tailwind.css: %{http_code} %{size_download}b\\\\nhtmx.min.js: %{http_code} %{size_download}b\\\\n\" http://localhost:8000/static/css/tailwind.css)",
+      "Bash(curl -s -o /dev/null -w \"htmx: %{http_code} %{size_download}b\\\\n\" http://localhost:8000/static/vendor/htmx.min.js)",
+      "Bash(curl)",
+      "Bash(MSYS_NO_PATHCONV=1 docker)",
+      "Bash(curl *)"
     ]
   }
 }

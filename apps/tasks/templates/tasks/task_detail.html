@@ -2,69 +2,250 @@
 
 {% block title %}{{ task.title }} — Planly{% endblock %}
 
+{# ──────────────────────────────────────────────────────────────
+   Partials defined here are addressable from views via
+   "tasks/task_detail.html#<name>" so HTMX endpoints can return
+   just the fragment they need.
+   ────────────────────────────────────────────────────────────── #}
+
+{% partialdef checklist_item %}
+<li id="checklist-item-{{ item.pk }}"
+    class="flex items-center gap-2 py-1.5 group">
+  <button type="button"
+          hx-post="{% url 'tasks:checklist-item-toggle' item.pk %}"
+          hx-target="#checklist-item-{{ item.pk }}"
+          hx-swap="outerHTML"
+          class="shrink-0 h-5 w-5 rounded border border-slate-300 flex items-center justify-center text-xs hover:border-indigo-500 cursor-pointer
+                 {% if item.is_completed %}bg-indigo-600 border-indigo-600 text-white{% endif %}"
+          aria-label="{% if item.is_completed %}Mark incomplete{% else %}Mark complete{% endif %}">
+    {% if item.is_completed %}✓{% endif %}
+  </button>
+  <span class="flex-1 text-sm {% if item.is_completed %}line-through text-slate-400{% else %}text-slate-700{% endif %}">
+    {{ item.title }}
+  </span>
+  <button type="button"
+          hx-post="{% url 'tasks:checklist-item-delete' item.pk %}"
+          hx-target="#checklist-item-{{ item.pk }}"
+          hx-swap="outerHTML"
+          hx-confirm="Delete this item?"
+          class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 cursor-pointer"
+          aria-label="Delete">
+    ×
+  </button>
+</li>
+{% endpartialdef %}
+
+{% partialdef comment %}
+<article id="comment-{{ comment.pk }}"
+         class="rounded-md bg-slate-50 p-3 text-sm">
+  <p class="text-xs text-slate-500">
+    <span class="font-medium text-slate-700">{{ comment.created_by|default:"Someone" }}</span>
+    · {{ comment.created_at|timesince }} ago
+  </p>
+  <p class="mt-1 text-slate-700 whitespace-pre-wrap">{{ comment.body }}</p>
+</article>
+{% endpartialdef %}
+
+{% partialdef assignees %}
+<div id="task-assignees" class="space-y-2">
+  {% if task.assignees.all %}
+    <ul class="flex flex-wrap gap-1.5">
+      {% for assignee in task.assignees.all %}
+        <li class="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-700">
+          <span>{{ assignee }}</span>
+          <button type="button"
+                  hx-post="{% url 'tasks:task-unassign' task.pk assignee.pk %}"
+                  hx-target="#task-assignees"
+                  hx-swap="outerHTML"
+                  class="text-indigo-400 hover:text-red-600 cursor-pointer"
+                  aria-label="Unassign">
+            ×
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-xs text-slate-500 italic">No one assigned.</p>
+  {% endif %}
+
+  <button type="button"
+          hx-get="{% url 'tasks:task-assignee-picker' task.pk %}"
+          hx-target="#task-assignee-picker"
+          hx-swap="innerHTML"
+          class="text-xs text-indigo-600 hover:text-indigo-700 cursor-pointer">
+    + Assign
+  </button>
+  <div id="task-assignee-picker"></div>
+</div>
+{% endpartialdef %}
+
+{% partialdef title_display %}
+<h1 id="task-title"
+    hx-get="{% url 'tasks:task-edit-title' task.pk %}"
+    hx-trigger="click"
+    hx-target="this"
+    hx-swap="outerHTML"
+    class="text-2xl font-semibold text-slate-900 cursor-pointer hover:bg-slate-100 rounded px-1 -mx-1"
+    title="Click to edit">
+  {{ task.title }}
+</h1>
+{% endpartialdef %}
+
+{% partialdef title_edit %}
+<form id="task-title"
+      hx-post="{% url 'tasks:task-edit-title' task.pk %}"
+      hx-target="this"
+      hx-swap="outerHTML"
+      class="-mx-1">
+  {% csrf_token %}
+  <input type="text" name="title" value="{{ task.title }}" required autofocus
+         class="text-2xl font-semibold text-slate-900 w-full rounded px-1 border border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500">
+  <p class="mt-1 text-xs text-slate-500">Press Enter to save.</p>
+</form>
+{% endpartialdef %}
+
+{% partialdef assignee_picker %}
+<div class="mt-2 rounded-md border border-slate-200 bg-white p-2 shadow-sm">
+  <p class="text-xs text-slate-500 mb-1 px-1">Team members</p>
+  {% if candidates %}
+    <ul class="space-y-0.5">
+      {% for member in candidates %}
+        <li>
+          <button type="button"
+                  hx-post="{% url 'tasks:task-assign' task.pk member.pk %}"
+                  hx-target="#task-assignees"
+                  hx-swap="outerHTML"
+                  class="block w-full text-left text-sm rounded px-2 py-1 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer">
+            {{ member }}
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="px-1 text-xs text-slate-500 italic">Everyone is already assigned.</p>
+  {% endif %}
+</div>
+{% endpartialdef %}
+
 {% block content %}
-<p><a href="{% url 'plans:plan-detail' task.bucket.plan_id %}">← Back to plan</a></p>
+<div class="mb-4">
+  <a href="{% url 'plans:plan-detail' task.bucket.plan_id %}"
+     class="text-sm text-slate-600 hover:text-slate-900">← Back to plan</a>
+</div>
 
-<h1>{{ task.title }}</h1>
+<div class="grid gap-6 lg:grid-cols-3">
 
-<dl>
-  <dt>Bucket</dt><dd>{{ task.bucket.title }}</dd>
-  <dt>Priority</dt><dd>{{ task.get_priority_display }}</dd>
-  <dt>Progress</dt><dd>{{ task.get_progress_display }}</dd>
-  {% if task.due_date %}<dt>Due</dt><dd>{{ task.due_date }}{% if task.is_overdue %} (overdue){% endif %}</dd>{% endif %}
-  {% if task.created_by %}<dt>Created by</dt><dd>{{ task.created_by }}</dd>{% endif %}
-</dl>
+  {# ─── Main column: title, description, checklist, comments ─── #}
+  <div class="lg:col-span-2 space-y-6">
 
-{% if task.description %}<p>{{ task.description|linebreaks }}</p>{% endif %}
+    <header>
+      {% partial title_display %}
+      {% if task.description %}
+        <p class="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{{ task.description }}</p>
+      {% endif %}
+    </header>
 
-<p>
-  <a href="{% url 'tasks:task-update' task.pk %}">Edit</a>
-  · <a href="{% url 'tasks:task-delete' task.pk %}">Delete</a>
-</p>
+    {# Checklist #}
+    <section class="rounded-lg bg-white p-4 shadow-sm border border-slate-200">
+      <h2 class="text-sm font-semibold text-slate-900 mb-2">Checklist</h2>
 
-{% if task.progress < 100 %}
-  <form action="{% url 'tasks:task-complete' task.pk %}" method="post">
-    {% csrf_token %}
-    <button type="submit">Mark complete</button>
-  </form>
-{% endif %}
+      <ul id="checklist-list" class="divide-y divide-slate-100">
+        {% for item in task.checklist_items.all %}
+          {% partial checklist_item %}
+        {% endfor %}
+      </ul>
 
-<h2>Checklist</h2>
-{% if task.checklist_items.all %}
-  <ul>
-    {% for item in task.checklist_items.all %}
-      <li>
-        <form action="{% url 'tasks:checklist-item-toggle' item.pk %}" method="post" style="display:inline">
+      <form hx-post="{% url 'tasks:checklist-item-add' task.pk %}"
+            hx-target="#checklist-list"
+            hx-swap="beforeend"
+            hx-on::after-request="if(event.detail.successful) this.reset()"
+            class="mt-3 flex items-center gap-2">
+        {% csrf_token %}
+        <input type="text" name="title" required placeholder="Add an item..."
+               class="flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500">
+        <button type="submit"
+                class="rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-700">
+          Add
+        </button>
+      </form>
+    </section>
+
+    {# Comments #}
+    <section class="rounded-lg bg-white p-4 shadow-sm border border-slate-200">
+      <h2 class="text-sm font-semibold text-slate-900 mb-3">Comments</h2>
+
+      <div id="comment-list" class="space-y-3 mb-4">
+        {% for comment in task.comments.all %}
+          {% partial comment %}
+        {% empty %}
+          <p class="text-xs text-slate-500 italic">No comments yet.</p>
+        {% endfor %}
+      </div>
+
+      <form hx-post="{% url 'tasks:comment-add' task.pk %}"
+            hx-target="#comment-list"
+            hx-swap="beforeend"
+            hx-on::after-request="if(event.detail.successful) this.reset()"
+            class="space-y-2">
+        {% csrf_token %}
+        <textarea name="body" rows="2" required placeholder="Add a comment..."
+                  class="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"></textarea>
+        <button type="submit"
+                class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700">
+          Post
+        </button>
+      </form>
+    </section>
+  </div>
+
+  {# ─── Sidebar: meta + actions ─── #}
+  <aside class="space-y-4">
+
+    <div class="rounded-lg bg-white p-4 shadow-sm border border-slate-200">
+      <h2 class="text-sm font-semibold text-slate-900 mb-2">Assignees</h2>
+      {% partial assignees %}
+    </div>
+
+    <div class="rounded-lg bg-white p-4 shadow-sm border border-slate-200">
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500">Bucket</dt><dd class="text-slate-700">{{ task.bucket.title }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Priority</dt><dd class="text-slate-700">{{ task.get_priority_display }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Progress</dt><dd class="text-slate-700">{{ task.get_progress_display }}</dd></div>
+        {% if task.due_date %}
+          <div class="flex justify-between">
+            <dt class="text-slate-500">Due</dt>
+            <dd class="text-slate-700">
+              {{ task.due_date }}
+              {% if task.is_overdue %}<span class="ml-1 text-red-600">(overdue)</span>{% endif %}
+            </dd>
+          </div>
+        {% endif %}
+        {% if task.created_by %}
+          <div class="flex justify-between"><dt class="text-slate-500">Created by</dt><dd class="text-slate-700">{{ task.created_by }}</dd></div>
+        {% endif %}
+      </dl>
+    </div>
+
+    <div class="rounded-lg bg-white p-4 shadow-sm border border-slate-200 space-y-2">
+      {% if task.progress < 100 %}
+        <form action="{% url 'tasks:task-complete' task.pk %}" method="post">
           {% csrf_token %}
-          <button type="submit">{% if item.is_completed %}☑{% else %}☐{% endif %}</button>
+          <button type="submit"
+                  class="w-full rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700">
+            Mark complete
+          </button>
         </form>
-        {% if item.is_completed %}<s>{{ item.title }}</s>{% else %}{{ item.title }}{% endif %}
-        <form action="{% url 'tasks:checklist-item-delete' item.pk %}" method="post" style="display:inline">
-          {% csrf_token %}
-          <button type="submit">×</button>
-        </form>
-      </li>
-    {% endfor %}
-  </ul>
-{% endif %}
-<form action="{% url 'tasks:checklist-item-add' task.pk %}" method="post">
-  {% csrf_token %}
-  <input type="text" name="title" placeholder="New checklist item" required>
-  <button type="submit">Add</button>
-</form>
+      {% endif %}
+      <a href="{% url 'tasks:task-update' task.pk %}"
+         class="block w-full text-center rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+        Edit
+      </a>
+      <a href="{% url 'tasks:task-delete' task.pk %}"
+         class="block w-full text-center text-sm text-red-600 hover:text-red-700">
+        Delete
+      </a>
+    </div>
 
-<h2>Comments</h2>
-{% for comment in task.comments.all %}
-  <article>
-    <p><strong>{{ comment.created_by|default:"Someone" }}</strong> — {{ comment.created_at|timesince }} ago</p>
-    <p>{{ comment.body|linebreaks }}</p>
-  </article>
-{% empty %}
-  <p><em>No comments yet.</em></p>
-{% endfor %}
-<form action="{% url 'tasks:comment-add' task.pk %}" method="post">
-  {% csrf_token %}
-  <p><textarea name="body" rows="3" placeholder="Add a comment" required></textarea></p>
-  <button type="submit">Post</button>
-</form>
+  </aside>
+</div>
 {% endblock %}

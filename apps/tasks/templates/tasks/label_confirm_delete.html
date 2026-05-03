@@ -3,12 +3,6 @@
 {% block title %}Delete {{ label.name }} — Planly{% endblock %}
 
 {% block content %}
-<h1>Delete label?</h1>
-<p>Are you sure you want to delete <strong>{{ label.name }}</strong>? It will be removed from any tasks it's attached to.</p>
-
-<form method="post">
-  {% csrf_token %}
-  <button type="submit">Yes, delete</button>
-  <a href="{% url 'plans:plan-detail' label.plan_id %}">Cancel</a>
-</form>
+{% url 'plans:plan-detail' label.plan_id as cancel_url %}
+{% include "partials/_confirm_delete.html" with object_kind="label" object_label=label.name cancel_url=cancel_url warning="It will be removed from any tasks it's attached to." %}
 {% endblock %}

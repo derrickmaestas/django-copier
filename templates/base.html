@@ -1,28 +1,49 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
+{% load static %}<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Planly{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  {% block extra_css %}{% endblock %}
 </head>
-<body>
-  <nav>
-    <a href="{% url 'home' %}">Planly</a>
-    {% if user.is_authenticated %}
-      <a href="{% url 'plans:plan-list' %}">Plans</a>
-      <a href="{% url 'notifications:notification-list' %}">Notifications</a>
-      <span>{{ user }}</span>
-      <form action="{% url 'logout' %}" method="post" style="display:inline">
-        {% csrf_token %}
-        <button type="submit">Log out</button>
-      </form>
-    {% else %}
-      <a href="{% url 'login' %}">Log in</a>
-    {% endif %}
+<body class="min-h-full text-slate-800 antialiased"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <nav class="bg-white border-b border-slate-200">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14">
+      <a href="{% url 'home' %}" class="text-lg font-semibold text-indigo-600 hover:text-indigo-700">
+        Planly
+      </a>
+      <div class="flex items-center gap-4 text-sm">
+        {% if user.is_authenticated %}
+          <a href="{% url 'plans:plan-list' %}" class="text-slate-600 hover:text-slate-900">Plans</a>
+          <a href="{% url 'notifications:notification-list' %}" class="text-slate-600 hover:text-slate-900">
+            Notifications
+          </a>
+          <span class="text-slate-500 hidden sm:inline">{{ user }}</span>
+          <form action="{% url 'logout' %}" method="post" class="inline">
+            {% csrf_token %}
+            <button type="submit"
+                    class="text-slate-600 hover:text-slate-900 cursor-pointer">
+              Log out
+            </button>
+          </form>
+        {% else %}
+          <a href="{% url 'login' %}"
+             class="rounded-md bg-indigo-600 px-3 py-1.5 text-white hover:bg-indigo-700">
+            Log in
+          </a>
+        {% endif %}
+      </div>
+    </div>
   </nav>
 
-  <main>
+  <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
     {% block content %}{% endblock %}
   </main>
+
+  <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+  {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -6,3 +6,6 @@ class TasksConfig(AppConfig):
     name = "apps.tasks"
     label = "tasks"
     verbose_name = "Tasks & Assignments"
+
+    def ready(self):
+        from . import signals  # noqa: F401

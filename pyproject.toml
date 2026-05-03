@@ -9,6 +9,10 @@ dependencies = [
     "django-extensions",
     "django-storages[s3]>=1.14.6",
     "python-dotenv>=1.2.2",
+    "django-tailwind-cli",
+    "django-template-partials",
+    "django-crispy-forms",
+    "crispy-tailwind",
 ]
 
 [dependency-groups]

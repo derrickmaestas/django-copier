@@ -1,18 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}{% if object %}Edit bucket{% else %}New bucket{% endif %} — Planly{% endblock %}
+{% block title %}{% if object %}Edit{% else %}New{% endif %} bucket — Planly{% endblock %}
 
 {% block content %}
-<h1>{% if object %}Edit bucket{% else %}New bucket{% endif %}</h1>
-
-<form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Save</button>
-  {% if object %}
-    <a href="{% url 'plans:plan-detail' object.plan_id %}">Cancel</a>
-  {% else %}
-    <a href="{% url 'plans:plan-detail' view.plan.pk %}">Cancel</a>
-  {% endif %}
-</form>
+{% if object %}
+  {% url 'plans:plan-detail' object.plan_id as cancel_url %}
+  {% include "partials/_form_card.html" with heading="Edit bucket" cancel_url=cancel_url %}
+{% else %}
+  {% url 'plans:plan-detail' view.plan.pk as cancel_url %}
+  {% include "partials/_form_card.html" with heading="New bucket" cancel_url=cancel_url %}
+{% endif %}
 {% endblock %}

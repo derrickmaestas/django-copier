@@ -3,20 +3,38 @@
 {% block title %}Plans — Planly{% endblock %}
 
 {% block content %}
-<h1>Your plans</h1>
-
-<p><a href="{% url 'plans:plan-create' %}">New plan</a></p>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-slate-900">Your plans</h1>
+  <a href="{% url 'plans:plan-create' %}"
+     class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+    New plan
+  </a>
+</div>
 
 {% if plans %}
-  <ul>
+  <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     {% for plan in plans %}
       <li>
-        <a href="{% url 'plans:plan-detail' plan.pk %}">{{ plan.title }}</a>
-        — {{ plan.completed_task_count }} / {{ plan.task_count }} tasks complete
+        <a href="{% url 'plans:plan-detail' plan.pk %}"
+           class="block rounded-lg bg-white p-4 shadow-sm border border-slate-200 hover:border-indigo-300 hover:shadow transition">
+          <h3 class="font-medium text-slate-900">{{ plan.title }}</h3>
+          {% if plan.description %}
+            <p class="mt-1 text-sm text-slate-600 line-clamp-2">{{ plan.description }}</p>
+          {% endif %}
+          <p class="mt-3 text-xs text-slate-500">
+            {{ plan.completed_task_count }} / {{ plan.task_count }} tasks complete
+          </p>
+        </a>
       </li>
     {% endfor %}
   </ul>
 {% else %}
-  <p>No plans yet. <a href="{% url 'plans:plan-create' %}">Create your first plan</a>.</p>
+  <div class="rounded-lg border-2 border-dashed border-slate-300 p-12 text-center">
+    <p class="text-slate-600">No plans yet.</p>
+    <a href="{% url 'plans:plan-create' %}"
+       class="mt-3 inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+      Create your first plan
+    </a>
+  </div>
 {% endif %}
 {% endblock %}

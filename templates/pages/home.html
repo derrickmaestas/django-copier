@@ -3,12 +3,26 @@
 {% block title %}Planly{% endblock %}
 
 {% block content %}
-<h1>Planly</h1>
-<p>A simple, fast task planner for small teams.</p>
+<div class="text-center py-16">
+  <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+    Planly
+  </h1>
+  <p class="mt-4 text-lg text-slate-600">
+    A simple, fast task planner for small teams.
+  </p>
 
-{% if user.is_authenticated %}
-  <p><a href="{% url 'plans:plan-list' %}">Go to your plans →</a></p>
-{% else %}
-  <p><a href="{% url 'login' %}">Log in</a> to get started.</p>
-{% endif %}
+  <div class="mt-8">
+    {% if user.is_authenticated %}
+      <a href="{% url 'plans:plan-list' %}"
+         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+        Go to your plans →
+      </a>
+    {% else %}
+      <a href="{% url 'login' %}"
+         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+        Log in to get started
+      </a>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

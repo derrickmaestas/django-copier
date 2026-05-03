@@ -3,16 +3,11 @@
 {% block title %}{% if object %}Edit label{% else %}New label{% endif %} — Planly{% endblock %}
 
 {% block content %}
-<h1>{% if object %}Edit label{% else %}New label{% endif %}</h1>
-
-<form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Save</button>
-  {% if object %}
-    <a href="{% url 'plans:plan-detail' object.plan_id %}">Cancel</a>
-  {% else %}
-    <a href="{% url 'plans:plan-detail' view.plan.pk %}">Cancel</a>
-  {% endif %}
-</form>
+{% if object %}
+  {% url 'plans:plan-detail' object.plan_id as cancel_url %}
+  {% include "partials/_form_card.html" with heading="Edit label" cancel_url=cancel_url %}
+{% else %}
+  {% url 'plans:plan-detail' view.plan.pk as cancel_url %}
+  {% include "partials/_form_card.html" with heading="New label" cancel_url=cancel_url %}
+{% endif %}
 {% endblock %}

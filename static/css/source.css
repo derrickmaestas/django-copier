@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+@source "../../templates/**/*.html";
+@source "../../apps/**/templates/**/*.html";
+
+@theme {
+  --color-bucket: #f3f4f6;
+}

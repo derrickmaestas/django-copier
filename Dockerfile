@@ -11,9 +11,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Install system dependencies needed to compile psycopg (C extension)
+# Build-stage system dependencies:
+# - gcc, libpq-dev: compile psycopg (C extension)
+# - curl, ca-certificates: fetch the standalone tailwindcss binary
+ARG TAILWIND_VERSION=v4.1.10
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev && \
+    apt-get install -y --no-install-recommends \
+        gcc libpq-dev curl ca-certificates && \
+    curl -fsSL -o /usr/local/bin/tailwindcss \
+        "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64" && \
+    chmod +x /usr/local/bin/tailwindcss && \
     rm -rf /var/lib/apt/lists/*
 
 # Let uv manage the Python runtime
@@ -35,17 +42,30 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked $UV_INSTALL_ARGS
 
+# Compile Tailwind CSS once at build time (production-ready output).
+# In dev, override with `manage.py tailwind watch` for live rebuilds.
+# DB_HOST is bogus because tailwind build doesn't touch the database — but
+# the local settings module reads the env var at import time.
+RUN DJANGO_SECRET_KEY=build DJANGO_SETTINGS_MODULE=config.settings.local \
+    DB_HOST=__build_only__ \
+    /app/.venv/bin/python manage.py tailwind build
+
 # ─── Stage 2: Runtime ────────────────────────────────────────
 FROM debian:trixie-slim
 
 WORKDIR /app
 
-# Runtime system dependencies only (no compiler)
+# Runtime system dependencies (libpq5 for psycopg). No compiler, no curl.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system planly && \
     useradd --system --gid planly --no-create-home planly
+
+# Reuse the binary the build stage already fetched — no second download,
+# no ca-certificates package needed at runtime. Devs can run
+# `manage.py tailwind watch` from inside the running container.
+COPY --from=builder /usr/local/bin/tailwindcss /usr/local/bin/tailwindcss
 
 # Copy uv so dev/test can run `uv run` commands
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/

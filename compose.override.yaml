@@ -20,6 +20,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Bind-mounts make host edits immediately visible inside the container
+    # without needing `docker compose up --watch`. Django's runserver picks
+    # up Python changes via its built-in autoreloader.
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./templates:/app/templates
+      - ./static:/app/static
     develop:
       watch:
         # Sync Python source — Django's runserver auto-reloads on change
@@ -83,3 +91,27 @@ services:
 
         - action: rebuild
           path: ./uv.lock
+
+  # Tailwind watcher — rebuilds /app/static/css/tailwind.css whenever any
+  # template or apps/*/templates file changes. Bind-mounts source dirs so
+  # the watcher sees host edits without a sync round-trip, and writes the
+  # output back to the host so the web container's watch sync picks it up.
+  tailwind:
+    build:
+      context: .
+      args:
+        UV_INSTALL_ARGS: "--all-groups"
+    user: root
+    command: uv run manage.py tailwind watch
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./templates:/app/templates
+      - ./static:/app/static
