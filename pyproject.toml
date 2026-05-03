@@ -13,6 +13,10 @@ dependencies = [
     "django-template-partials",
     "django-crispy-forms",
     "crispy-tailwind",
+    "djangorestframework>=3.17.1",
+    "djangorestframework-simplejwt>=5.5.1",
+    "drf-spectacular>=0.29.0",
+    "django-filter>=25.2",
 ]
 
 [dependency-groups]

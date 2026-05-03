@@ -12,8 +12,7 @@ urlpatterns = [
     path("plans/", include("apps.plans.urls", namespace="plans")),
     path("tasks/", include("apps.tasks.urls", namespace="tasks")),
     path("notifications/", include("apps.notifications.urls", namespace="notifications")),
-    # API URLs are wired up in Chapter 13.
-    # path("api/", include("config.api_router")),
+    path("api/v1/", include("config.api_router")),
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
 

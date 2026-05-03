@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -40,6 +41,9 @@ INSTALLED_APPS = [
     "template_partials",
     "crispy_forms",
     "crispy_tailwind",
+    "rest_framework",
+    "django_filters",
+    "drf_spectacular",
     # Planly apps
     "apps.core",
     "apps.accounts",
@@ -162,6 +166,61 @@ TAILWIND_CLI_DIST_CSS = "css/tailwind.css"
 # ──────────────────────────────────────────────
 CRISPY_ALLOWED_TEMPLATE_PACKS = "tailwind"
 CRISPY_TEMPLATE_PACK = "tailwind"
+
+# ──────────────────────────────────────────────
+# REST Framework
+# ──────────────────────────────────────────────
+# Two authentication classes coexist: SessionAuthentication is what the
+# browser carries via the same cookie that powers the server-rendered
+# views, so /api/docs/ and any in-app fetch() works out of the box.
+# JWTAuthentication is for clients that don't share a session (mobile,
+# external scripts, the eventual SPA).
+REST_FRAMEWORK = {
+    # Order matters: DRF uses the first auth class's `authenticate_header()`
+    # to build the WWW-Authenticate challenge on a 401. JWT first gives API
+    # clients a proper 401 with a Bearer challenge; session auth still works
+    # for the browsable API and any in-app fetch() that carries the cookie.
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 25,
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
+    ),
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+    "DEFAULT_VERSION": "v1",
+    "ALLOWED_VERSIONS": ("v1",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "TEST_REQUEST_DEFAULT_FORMAT": "json",
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    # Our custom User model uses employee_id as the primary key, not the
+    # default `id`. Tell simplejwt to encode that into the token claims and
+    # to look it up the same way on decode.
+    "USER_ID_FIELD": "employee_id",
+    "USER_ID_CLAIM": "employee_id",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Planly API",
+    "DESCRIPTION": "Task management — Plans, Buckets, Tasks, Comments, Notifications.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Tell spectacular about our URL versioning so /api/v1/ shows up in the
+    # generated schema and Swagger UI's Try-It-Out hits the right path.
+    "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+/",
+}
 
 # ──────────────────────────────────────────────
 # Planly-specific settings
