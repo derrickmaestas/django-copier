@@ -2,11 +2,11 @@
 
 {% block title %}{{ task.title }} — Planly{% endblock %}
 
-{# ──────────────────────────────────────────────────────────────
-   Partials defined here are addressable from views via
-   "tasks/task_detail.html#<name>" so HTMX endpoints can return
-   just the fragment they need.
-   ────────────────────────────────────────────────────────────── #}
+{% comment %}
+  Partials defined here are addressable from views via
+  "tasks/task_detail.html#<name>" so HTMX endpoints can return
+  just the fragment they need.
+{% endcomment %}
 
 {% partialdef checklist_item %}
 <li id="checklist-item-{{ item.pk }}"

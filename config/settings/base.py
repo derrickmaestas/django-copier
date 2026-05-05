@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_filters",
     "drf_spectacular",
+    "pgtrigger",
+    "django.contrib.postgres",
     # Planly apps
     "apps.core",
     "apps.accounts",

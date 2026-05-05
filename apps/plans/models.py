@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
 
 from apps.core.models import OrderedModel, TimeStampedModel
@@ -38,6 +40,18 @@ class Plan(TimeStampedModel):
         choices=Visibility.choices,
         default=Visibility.PRIVATE,
     )
+    # Tier 1 FTS: a tsvector computed by Postgres from this row's own
+    # fields (title weighted A, description weighted B). The DB
+    # maintains it on every insert/update — no triggers, no signal
+    # handlers, no application code path can forget to refresh it.
+    search_vector = models.GeneratedField(
+        expression=(
+            SearchVector("title", config="english_unaccent", weight="A")
+            + SearchVector("description", config="english_unaccent", weight="B")
+        ),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
 
     objects = PlanQuerySet.as_manager()
 
@@ -45,6 +59,7 @@ class Plan(TimeStampedModel):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["team", "-created_at"], name="idx_plan_team_created"),
+            GinIndex(fields=["search_vector"], name="idx_plan_search_vector"),
         ]
 
     def __str__(self):

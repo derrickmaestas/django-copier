@@ -27,6 +27,7 @@ urlpatterns = [
     path("", include("apps.plans.api.urls")),
     path("", include("apps.tasks.api.urls")),
     path("", include("apps.notifications.api.urls")),
+    path("", include("apps.core.api.urls")),
     # JWT — obtain (login), refresh, verify. Session auth still works
     # for the browsable API; JWT is for clients that don't share a cookie.
     path("auth/token/", TokenObtainPairView.as_view(), name="token-obtain-pair"),

@@ -15,6 +15,16 @@
       <a href="{% url 'home' %}" class="text-lg font-semibold text-indigo-600 hover:text-indigo-700">
         Planly
       </a>
+      {% if user.is_authenticated %}
+        <form action="{% url 'core:search' %}" method="get"
+              class="flex flex-1 max-w-md mx-4">
+          <input type="search" name="q" value="{{ request.GET.q|default:'' }}"
+                 placeholder="Search plans &amp; tasks…"
+                 class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                 aria-label="Search plans and tasks">
+        </form>
+      {% endif %}
       <div class="flex items-center gap-4 text-sm">
         {% if user.is_authenticated %}
           <a href="{% url 'plans:plan-list' %}" class="text-slate-600 hover:text-slate-900">Plans</a>

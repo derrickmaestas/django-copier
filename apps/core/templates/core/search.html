@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Search — Planly{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <header class="space-y-2">
+    <h1 class="text-2xl font-semibold text-slate-900">Search</h1>
+    {% if query %}
+      <p class="text-sm text-slate-500">
+        Results for <span class="font-medium text-slate-700">“{{ query }}”</span>
+      </p>
+    {% endif %}
+  </header>
+
+  <form action="{% url 'core:search' %}" method="get" class="flex gap-2">
+    <input type="search" name="q" value="{{ query }}"
+           placeholder="Search plans &amp; tasks…"
+           class="flex-1 rounded-md border border-slate-300 px-3 py-2
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500"
+           autofocus>
+    <button type="submit"
+            class="rounded-md bg-indigo-600 px-4 py-2 text-sm text-white
+                   hover:bg-indigo-700">
+      Search
+    </button>
+  </form>
+
+  {% if query %}
+    <nav class="flex gap-1 border-b border-slate-200" aria-label="Filter results">
+      {% comment %}
+        Tabs use HTMX to swap just the #search-results pane below.
+        hx-push-url updates the address bar so reload keeps the filter.
+      {% endcomment %}
+      {% with all_active=type_filter|default_if_none:'all' %}
+        <a href="?q={{ query|urlencode }}"
+           hx-get="?q={{ query|urlencode }}"
+           hx-target="#search-results" hx-push-url="true"
+           class="px-3 py-2 text-sm border-b-2 cursor-pointer
+                  {% if not type_filter %}border-indigo-600 text-indigo-700 font-medium
+                  {% else %}border-transparent text-slate-600 hover:text-slate-900{% endif %}">
+          All
+        </a>
+        <a href="?q={{ query|urlencode }}&type=plan"
+           hx-get="?q={{ query|urlencode }}&type=plan"
+           hx-target="#search-results" hx-push-url="true"
+           class="px-3 py-2 text-sm border-b-2 cursor-pointer
+                  {% if type_filter == 'plan' %}border-indigo-600 text-indigo-700 font-medium
+                  {% else %}border-transparent text-slate-600 hover:text-slate-900{% endif %}">
+          Plans
+        </a>
+        <a href="?q={{ query|urlencode }}&type=task"
+           hx-get="?q={{ query|urlencode }}&type=task"
+           hx-target="#search-results" hx-push-url="true"
+           class="px-3 py-2 text-sm border-b-2 cursor-pointer
+                  {% if type_filter == 'task' %}border-indigo-600 text-indigo-700 font-medium
+                  {% else %}border-transparent text-slate-600 hover:text-slate-900{% endif %}">
+          Tasks
+        </a>
+      {% endwith %}
+    </nav>
+  {% endif %}
+
+  <div id="search-results">
+    {% partialdef results inline %}
+      {% if not query %}
+        <p class="text-sm text-slate-500">Type a query to begin.</p>
+      {% else %}
+        {% if not type_filter or type_filter == 'plan' %}
+          <section class="space-y-2">
+            <h2 class="text-sm font-medium uppercase tracking-wide text-slate-500">Plans</h2>
+            {% if plans %}
+              <ul class="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
+                {% for plan in plans %}
+                  <li class="p-3 hover:bg-slate-50">
+                    <a href="{% url 'plans:plan-detail' pk=plan.pk %}"
+                       class="block">
+                      <div class="font-medium text-slate-900">{{ plan.title }}</div>
+                      {% if plan.description %}
+                        <div class="text-sm text-slate-600 line-clamp-2">
+                          {{ plan.description }}
+                        </div>
+                      {% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-sm text-slate-500">No plan matches.</p>
+            {% endif %}
+          </section>
+        {% endif %}
+
+        {% if not type_filter or type_filter == 'task' %}
+          <section class="space-y-2 mt-6">
+            <h2 class="text-sm font-medium uppercase tracking-wide text-slate-500">Tasks</h2>
+            {% if tasks %}
+              <ul class="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
+                {% for task in tasks %}
+                  <li class="p-3 hover:bg-slate-50">
+                    <a href="{% url 'tasks:task-detail' pk=task.pk %}"
+                       class="block">
+                      <div class="font-medium text-slate-900">{{ task.title }}</div>
+                      <div class="text-xs text-slate-500">
+                        {{ task.bucket.plan.title }} → {{ task.bucket.title }}
+                      </div>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-sm text-slate-500">No task matches.</p>
+            {% endif %}
+          </section>
+        {% endif %}
+      {% endif %}
+    {% endpartialdef %}
+  </div>
+
+</div>
+{% endblock %}

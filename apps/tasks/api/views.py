@@ -25,16 +25,26 @@ class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
     filterset_class = TaskFilter
-    search_fields = ["title", "description"]
+    # `?search=` is FTS-backed (see get_queryset). SearchFilter's
+    # icontains pass would fight ranking, so we don't list it here.
     ordering_fields = ["due_date", "priority", "created_at", "progress"]
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return (
+        base = (
             Task.objects.for_user(self.request.user)
             .select_related("bucket", "created_by")
             .prefetch_related("assignees")
         )
+        search = (self.request.query_params.get("search") or "").strip()
+        if search:
+            return (
+                Task.objects.for_user(self.request.user)
+                .search(search)
+                .select_related("bucket", "created_by")
+                .prefetch_related("assignees")
+            )
+        return base
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

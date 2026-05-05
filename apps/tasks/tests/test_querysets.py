@@ -4,7 +4,12 @@ import pytest
 from django.utils import timezone
 
 from apps.tasks.models import Task
-from apps.tasks.tests.factories import AssignmentFactory, ChecklistItemFactory, TaskFactory
+from apps.tasks.tests.factories import (
+    AssignmentFactory,
+    ChecklistItemFactory,
+    CommentFactory,
+    TaskFactory,
+)
 
 
 @pytest.mark.django_db
@@ -92,7 +97,7 @@ class TestTaskQuerySetWithChecklistCounts:
 
 @pytest.mark.django_db
 class TestTaskQuerySetSearch:
-    """TaskQuerySet.search() filters by title and description."""
+    """TaskQuerySet.search() runs Postgres FTS against the trigger-maintained vector."""
 
     def test_matches_title(self):
         task = TaskFactory(title="Fix login bug")
@@ -114,3 +119,51 @@ class TestTaskQuerySetSearch:
         result = Task.objects.search("dashboard")
 
         assert result.count() == 0
+
+    def test_matches_comment_body_via_trigger(self):
+        """Tier 2: a task is found because of one of its comments, not its own text."""
+        task = TaskFactory(title="Investigate latency", description="profile dashboard")
+        CommentFactory(task=task, body="Pretty sure it's the kanban query plan.")
+
+        result = Task.objects.search("kanban")
+
+        assert task in result
+
+    def test_comment_edit_updates_search_vector(self):
+        """Editing a comment body re-fires the fan-out trigger."""
+        task = TaskFactory(title="Latency", description="")
+        comment = CommentFactory(task=task, body="kanban query")
+
+        comment.body = "graphql resolver"
+        comment.save()
+
+        assert task not in Task.objects.search("kanban")
+        assert task in Task.objects.search("graphql")
+
+    def test_comment_delete_updates_search_vector(self):
+        """Deleting a comment removes its lexemes from the parent task's vector."""
+        task = TaskFactory(title="Latency", description="")
+        comment = CommentFactory(task=task, body="bottleneck spotted")
+
+        comment.delete()
+
+        assert task not in Task.objects.search("bottleneck")
+
+    def test_unaccent_matches_diacritics(self):
+        task = TaskFactory(title="Café outage", description="")
+
+        result = Task.objects.search("cafe")
+
+        assert task in result
+
+    def test_empty_query_returns_empty(self):
+        TaskFactory()
+        assert list(Task.objects.search("")) == []
+
+    def test_with_headline_annotates_snippet(self):
+        TaskFactory(description="we ship the dashboard rewrite by Friday")
+
+        task = Task.objects.search("dashboard", with_headline=True).first()
+
+        assert task is not None
+        assert "<b>" in task.headline

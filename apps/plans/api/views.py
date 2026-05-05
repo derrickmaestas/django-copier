@@ -26,14 +26,20 @@ class PlanViewSet(viewsets.ModelViewSet):
     serializer_class = PlanSerializer
     permission_classes = [IsAuthenticated]
     filterset_fields = ["team", "visibility"]
-    search_fields = ["title", "description"]
+    # No `search_fields` here — we override get_queryset() to call our
+    # FTS .search() method against the GeneratedField tsvector.
+    # SearchFilter (icontains) is bypassed in favor of ranked results.
     ordering_fields = ["created_at", "modified_at", "title"]
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        return Plan.objects.for_user(self.request.user).select_related(
+        qs = Plan.objects.for_user(self.request.user).select_related(
             "team", "owner", "created_by"
         )
+        search = (self.request.query_params.get("search") or "").strip()
+        if search:
+            return Plan.objects.for_user(self.request.user).search(search)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

@@ -1,4 +1,7 @@
+import pgtrigger
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils import timezone
 
@@ -10,6 +13,22 @@ from .querysets import (
     LabelQuerySet,
     TaskQuerySet,
 )
+
+# Postgres expression that recomputes Task.search_vector from a row's
+# own title (weight A) + description (weight B) plus the concatenation
+# of all related comment bodies (weight C). Defined once and substituted
+# into both triggers — keeps the two SQL bodies in sync by construction.
+_TASK_SEARCH_VECTOR_SQL = """
+    setweight(to_tsvector('english_unaccent', coalesce({title}, '')), 'A') ||
+    setweight(to_tsvector('english_unaccent', coalesce({description}, '')), 'B') ||
+    setweight(to_tsvector('english_unaccent',
+        coalesce((
+            SELECT string_agg(c.body, ' ')
+            FROM tasks_comment c
+            WHERE c.task_id = {task_id}
+        ), '')
+    ), 'C')
+"""
 
 
 class Task(TimeStampedModel):
@@ -62,6 +81,14 @@ class Task(TimeStampedModel):
         blank=True,
     )
 
+    # Tier 2 FTS: a denormalized tsvector maintained by Postgres
+    # triggers, not a GeneratedField. Why not generated? Because the
+    # vector folds in text from related Comment rows; a generated
+    # column can only see the row it lives on. The triggers below
+    # rebuild this column whenever a Task or any of its Comments
+    # changes — both write paths write the column the same way.
+    search_vector = SearchVectorField(null=True, blank=True)
+
     objects = TaskQuerySet.as_manager()
 
     class Meta:
@@ -73,6 +100,26 @@ class Task(TimeStampedModel):
                 fields=["progress"],
                 name="idx_task_incomplete",
                 condition=models.Q(progress__lt=100),
+            ),
+            GinIndex(fields=["search_vector"], name="idx_task_search_vector"),
+        ]
+        triggers = [
+            # Recompute search_vector whenever a row's own title or
+            # description changes (and on every insert).
+            pgtrigger.Trigger(
+                name="task_search_vector_self",
+                level=pgtrigger.Row,
+                when=pgtrigger.Before,
+                operation=pgtrigger.Insert | pgtrigger.UpdateOf("title", "description"),
+                func=(
+                    "NEW.search_vector := "
+                    + _TASK_SEARCH_VECTOR_SQL.format(
+                        title="NEW.title",
+                        description="NEW.description",
+                        task_id="NEW.id",
+                    )
+                    + "; RETURN NEW;"
+                ),
             ),
         ]
 
@@ -186,6 +233,34 @@ class Comment(TimeStampedModel):
         ordering = ["created_at"]
         indexes = [
             models.Index(fields=["task", "created_at"], name="idx_comment_task_created"),
+        ]
+        triggers = [
+            # When a comment is added, edited, or deleted, rebuild the
+            # parent task's search_vector from scratch. UPDATE-zero-rows
+            # is the right behavior when the task itself was just
+            # cascade-deleted — we don't error, we just no-op.
+            pgtrigger.Trigger(
+                name="comment_fanout_to_task_search_vector",
+                level=pgtrigger.Row,
+                when=pgtrigger.After,
+                operation=(
+                    pgtrigger.Insert
+                    | pgtrigger.UpdateOf("body", "task_id")
+                    | pgtrigger.Delete
+                ),
+                # The format() call substitutes only hardcoded SQL
+                # identifiers (`t.title`, `t.description`, `t.id`) into a
+                # constant template — there's no user input on this path.
+                func=(
+                    "UPDATE tasks_task t SET search_vector = "  # noqa: S608
+                    + _TASK_SEARCH_VECTOR_SQL.format(
+                        title="t.title",
+                        description="t.description",
+                        task_id="t.id",
+                    )
+                    + " WHERE t.id = COALESCE(NEW.task_id, OLD.task_id); RETURN NULL;"
+                ),
+            ),
         ]
 
     def __str__(self):
