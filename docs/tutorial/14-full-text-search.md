@@ -230,6 +230,8 @@ A few things worth pulling out:
 
 The Django 6 `partialdef` syntax is `{% partialdef name inline %}` — *not* `inline=True`. Earlier versions of `django-template-partials` accepted `inline=True`, but the built-in tag in Django 6 is stricter. Trip on this once and you remember it forever.
 
+> **Gotcha: `{# … #}` is single-line only.** A first draft of the tabs included a multi-line annotation written as `{# Tabs use HTMX… hx-push-url updates the address bar… #}`. Django parses `{# … #}` as a *single-line* comment — anything after the first newline is treated as literal template content. The annotation rendered onto the page in plain text. The fix: any comment that wraps to a second line must use `{% comment %}…{% endcomment %}`. Reserve `{# … #}` for inline single-line annotations (`<div>{# hidden by feature flag #}</div>`).
+
 The tabs themselves carry both `href` (for non-HTMX fallback) and `hx-get` (for the HTMX swap) — progressive enhancement built in. JavaScript-disabled visitors get a normal full-page request; everyone else gets the smooth tab swap.
 
 ---
@@ -241,7 +243,7 @@ The tabs themselves carry both `href` (for non-HTMX fallback) and `hx-get` (for 
 ```html
 {% if user.is_authenticated %}
   <form action="{% url 'core:search' %}" method="get"
-        class="hidden sm:flex flex-1 max-w-md mx-6">
+        class="flex flex-1 max-w-md mx-4">
     <input type="search" name="q" value="{{ request.GET.q|default:'' }}"
            placeholder="Search plans &amp; tasks…"
            class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm
@@ -251,10 +253,11 @@ The tabs themselves carry both `href` (for non-HTMX fallback) and `hx-get` (for 
 {% endif %}
 ```
 
-Two notes:
+Three notes:
 
 - **`type="search"`** gets the OS-native clear-button-on-the-right and dedicated keyboard.
 - **`value="{{ request.GET.q|default:'' }}"`** keeps the query visible in the navbar after a search — clicking elsewhere doesn't clear what you typed.
+- **No `hidden sm:flex` qualifier.** A first draft hid the bar on viewports under 640px (the Tailwind `sm` breakpoint), reasoning that mobile users would tap a separate icon to expand it. We pulled that — for a productivity tool, the search bar earns its real estate at every width, and adding a hide/expand toggle was extra surface for no benefit.
 
 We don't add HTMX live-search (typing-as-you-go) because the FTS query is heavy enough that we want explicit submission. Type, Enter, see results.
 

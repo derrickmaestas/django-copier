@@ -402,6 +402,8 @@ Two ways to render a partial:
 
 This is the killer feature for HTMX. The partial is defined exactly once. The full page renders it for the initial paint; HTMX endpoints render the same partial for incremental updates. There is no "fragment template" file separate from the page template — the page is the source of truth.
 
+> **Gotcha — `{# … #}` is single-line only.** Django's hash-comment syntax does *not* span newlines: anything after the first line is treated as literal template content. A multi-line `{# section header /  notes / more notes #}` block will render its inner text into the page. For comments that wrap, always reach for `{% comment %}…{% endcomment %}`. Save `{# … #}` for true single-line annotations (`<div>{# hidden by feature flag #}</div>`).
+
 A loop that uses both forms:
 
 ```django
