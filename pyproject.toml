@@ -18,6 +18,7 @@ dependencies = [
     "drf-spectacular>=0.29.0",
     "django-filter>=25.2",
     "django-pgtrigger>=4.17.0",
+    "python-magic>=0.4.27",
 ]
 
 [dependency-groups]

@@ -55,9 +55,12 @@ FROM debian:trixie-slim
 
 WORKDIR /app
 
-# Runtime system dependencies (libpq5 for psycopg). No compiler, no curl.
+# Runtime system dependencies:
+# - libpq5: psycopg's C extension at runtime (no -dev, no compiler)
+# - libmagic1: file content-type sniffing for attachment uploads (Ch 16);
+#   without it, `import magic` raises and uploads can't be validated
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libpq5 && \
+    apt-get install -y --no-install-recommends libpq5 libmagic1 && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system planly && \
     useradd --system --gid planly --no-create-home planly
