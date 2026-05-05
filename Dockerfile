@@ -57,8 +57,9 @@ WORKDIR /app
 
 # Runtime system dependencies:
 # - libpq5: psycopg's C extension at runtime (no -dev, no compiler)
-# - libmagic1: file content-type sniffing for attachment uploads (Ch 16);
-#   without it, `import magic` raises and uploads can't be validated
+# - libmagic1: backing library for python-magic, used by the attachment
+#   upload validators to sniff file content types; without it,
+#   `import magic` raises ImportError at request time
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq5 libmagic1 && \
     rm -rf /var/lib/apt/lists/* && \

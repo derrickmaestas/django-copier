@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.plans.models import Bucket, Plan
 
+from .permissions import IsTeamOwnerOrAdmin
 from .serializers import BucketSerializer, PlanSerializer
 
 
@@ -24,7 +25,10 @@ class PlanViewSet(viewsets.ModelViewSet):
     # response model; the real per-request queryset comes from get_queryset().
     queryset = Plan.objects.none()
     serializer_class = PlanSerializer
-    permission_classes = [IsAuthenticated]
+    # IsTeamOwnerOrAdmin extends IsAuthenticated and refines two methods
+    # only: DELETE and PATCH/PUT-with-visibility. All other actions pass
+    # through with just the auth check from the parent class.
+    permission_classes = [IsTeamOwnerOrAdmin]
     filterset_fields = ["team", "visibility"]
     # No `search_fields` here — we override get_queryset() to call our
     # FTS .search() method against the GeneratedField tsvector.

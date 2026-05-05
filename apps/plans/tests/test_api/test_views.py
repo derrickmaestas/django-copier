@@ -124,14 +124,16 @@ class TestPlanUpdateDelete:
 
         assert response.status_code == 404
 
-    def test_member_can_delete(self, member_client):
+    def test_member_cannot_delete(self, member_client):
+        """Plain members can read and update — but deletion needs owner/admin
+        (see test_api/test_permissions.py for the privileged-role tests)."""
         client, user, team = member_client
         plan = PlanFactory(team=team)
 
         response = client.delete(f"/api/v1/plans/{plan.pk}/")
 
-        assert response.status_code == 204
-        assert not Plan.objects.filter(pk=plan.pk).exists()
+        assert response.status_code == 403
+        assert Plan.objects.filter(pk=plan.pk).exists()
 
 
 @pytest.mark.django_db

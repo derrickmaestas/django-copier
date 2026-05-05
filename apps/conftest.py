@@ -3,15 +3,16 @@
 The chief job here is creating real database tables for the test-only
 concrete models declared in `apps/core/tests/test_models.py` — those
 models exist solely to exercise the abstract bases (`TimeStampedModel`,
-`OrderedModel`) and have no migrations of their own. Pre-Chapter 14
-the suite ran with `--no-migrations` and Django's syncdb would create
-tables for any installed model, including these test-only ones.
+`OrderedModel`) and have no migrations of their own.
 
-Chapter 14 turned migrations back on (FTS extensions + custom config
-need them), so syncdb no longer paves over the gap. This fixture
-restores the missing tables in a session-scoped, idempotent way: it
-runs once after the test DB exists, registers each model with the
-schema editor, and tears the tables down at the end of the session.
+The test suite runs with migrations enabled (the FTS work depends on
+Postgres extensions, a custom english_unaccent text-search
+configuration, GIN indexes, and pgtriggers — all of which live in
+migrations and would be absent under syncdb). That means Django's
+syncdb path no longer auto-creates tables for installed-but-unmigrated
+test models. This fixture fills the gap: it runs once after the test
+DB exists, registers each model with the schema editor, and tears the
+tables down at the end of the session.
 """
 
 import pytest

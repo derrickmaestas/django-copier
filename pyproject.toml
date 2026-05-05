@@ -79,12 +79,12 @@ unresolved-attribute = "error"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-# Migrations are run (no --no-migrations) because Chapter 14 FTS work
-# depends on Postgres extensions (unaccent, pg_trgm), a custom
-# english_unaccent text-search configuration, GIN indexes, and
-# pgtriggers — all of which live in migrations and would be absent
-# under syncdb. --reuse-db keeps the per-run cost low after the first
-# fresh DB; pass --create-db when you want to rebuild.
+# Migrations are run (no --no-migrations) because the project's
+# full-text search relies on Postgres extensions (unaccent, pg_trgm),
+# a custom english_unaccent text-search configuration, GIN indexes,
+# and pgtriggers — all of which live in migrations and would be
+# absent under syncdb. --reuse-db keeps the per-run cost low after
+# the first fresh DB; pass --create-db when you want to rebuild.
 addopts = "--ds=config.settings.test --reuse-db -q --import-mode=importlib"
 
 [tool.coverage.run]
