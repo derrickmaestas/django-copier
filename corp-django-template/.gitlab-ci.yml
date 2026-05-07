@@ -1,0 +1,38 @@
+# Template's own CI — runs the dogfood matrix on every push.
+#
+# For each named answer file under tests/answers/, generate a project,
+# install its deps, and run its tests. If any combination fails, the
+# template is broken — that's the signal we want before consumers hit
+# the same problem at `copier copy` time.
+
+default:
+  image: python:3.14-slim-trixie
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends libmagic1 libpq-dev gcc git
+    - pip install --quiet uv
+    - uv tool install copier
+    - uv sync --frozen --all-groups
+
+stages:
+  - lint
+  - dogfood
+
+ruff:
+  stage: lint
+  script:
+    - uv run ruff check .
+
+dogfood:
+  stage: dogfood
+  parallel:
+    matrix:
+      - ANSWER_FILE: ["minimal", "full", "gateway-api-only"]
+  services:
+    - name: postgres:17
+      alias: db
+  variables:
+    POSTGRES_DB: ci
+    POSTGRES_USER: ci
+    POSTGRES_PASSWORD: ci
+  script:
+    - uv run pytest tests/test_${ANSWER_FILE//-/_}.py -v

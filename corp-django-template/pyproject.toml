@@ -1,0 +1,28 @@
+[project]
+name = "corp-django-template"
+version = "0.1.0"
+description = "Copier template for corporate Django web applications."
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "copier>=9.0.0",
+    "pytest",
+    "pyyaml",
+    "ruff",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 99
+extend-exclude = ["template/"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = ["tests"]

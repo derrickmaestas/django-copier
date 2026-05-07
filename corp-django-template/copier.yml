@@ -1,0 +1,179 @@
+# Copier template configuration.
+#
+# Run `copier copy <repo> my-new-app` to scaffold a new corporate Django
+# project. See README.md for the prompt reference and toggle matrix.
+#
+# Engine: Copier. Content lineage: cookiecutter-django (mined for layout
+# and prompt names) + planly-django (corporate conventions). See
+# UPSTREAM.md for what we ported and what we changed.
+
+_templates_suffix: .jinja
+_subdirectory: template
+_envops:
+  keep_trailing_newline: true
+_min_copier_version: "9.0.0"
+
+_message_after_copy: |
+  Project generated. Next steps:
+    1. cd into the new directory
+    2. cp .env.example .env  (and fill in real values)
+    3. uv sync --all-groups
+    4. docker compose up
+    5. The placeholder app at apps/example/ is meant to be replaced —
+       `git rm -r apps/example` once you have your domain models.
+
+_message_after_update: |
+  Project updated from the template. Review the diff carefully, then commit.
+
+_tasks:
+  - command: "git init -q"
+    when: "{{ _copier_operation == 'copy' }}"
+
+# ──────────────────────────────────────────────
+# Identity
+# ──────────────────────────────────────────────
+project_name:
+  type: str
+  help: "Display name for the project (e.g., 'Planly')"
+  validator: >-
+    {% if not project_name %}project_name is required.{% endif %}
+
+project_slug:
+  type: str
+  help: "Lowercase slug; the generated directory name."
+  default: "{{ project_name|lower|replace(' ', '-')|replace('_', '-') }}"
+  validator: >-
+    {% if not (project_slug | regex_search('^[a-z][a-z0-9\-]*$')) %}
+    project_slug must start with a lowercase letter and contain only
+    lowercase letters, digits, and hyphens.
+    {% endif %}
+
+package_slug:
+  type: str
+  help: "Python identifier used for settings prefixes (e.g., 'planly')."
+  default: "{{ project_slug|replace('-', '_') }}"
+  validator: >-
+    {% if not (package_slug | regex_search('^[a-z][a-z0-9_]*$')) %}
+    package_slug must be a valid Python identifier
+    (lowercase, digits, underscores; cannot start with a digit).
+    {% endif %}
+
+description:
+  type: str
+  help: "One-line description for pyproject.toml."
+  default: "A Django web application."
+
+author_name:
+  type: str
+  help: "Author name for pyproject.toml."
+  default: "Engineering"
+
+email:
+  type: str
+  help: "Contact email for pyproject.toml."
+  default: "engineering@example.com"
+
+domain_name:
+  type: str
+  help: "Production domain (drives DJANGO_ALLOWED_HOSTS sample, DEFAULT_FROM_EMAIL)."
+  default: "example.com"
+
+timezone:
+  type: str
+  help: "Default TIME_ZONE in Django settings."
+  default: "UTC"
+
+# ──────────────────────────────────────────────
+# Runtime versions
+# ──────────────────────────────────────────────
+python_version:
+  type: str
+  help: "Python version (drives pyproject, Dockerfile, ruff target-version)."
+  default: "3.14"
+  choices:
+    - "3.14"
+
+postgresql_version:
+  type: str
+  help: "Postgres major version (drives compose db service image)."
+  default: "17"
+  choices:
+    - "17"
+    - "18"
+
+tailwind_version:
+  type: str
+  help: "Standalone tailwindcss binary version (drives Dockerfile ARG)."
+  default: "v4.1.10"
+  when: "{{ use_htmx }}"
+
+# ──────────────────────────────────────────────
+# Auth
+# ──────────────────────────────────────────────
+auth_method:
+  type: str
+  help: |
+    How users authenticate:
+      - oidc:    Corporate SSO via OpenID Connect (mozilla-django-oidc).
+      - gateway: Corporate API gateway sets X-Forwarded-User; Django
+                 trusts it via a RemoteUserMiddleware skeleton.
+  default: "oidc"
+  choices:
+    - "oidc"
+    - "gateway"
+
+# ──────────────────────────────────────────────
+# Feature toggles
+# ──────────────────────────────────────────────
+use_drf:
+  type: bool
+  help: "Generate a DRF API layer with drf-spectacular schema docs?"
+  default: true
+
+use_htmx:
+  type: bool
+  help: "Wire HTMX + Tailwind v4 (standalone binary) into the templates?"
+  default: true
+
+use_fts:
+  type: bool
+  help: "Postgres full-text search (unaccent + pg_trgm + GeneratedField)?"
+  default: false
+
+use_attachments:
+  type: bool
+  help: "File-upload app with libmagic content-type validation + S3 storage?"
+  default: false
+
+use_notifications:
+  type: bool
+  help: "In-app notifications via django.tasks fan-out + worker service?"
+  default: false
+
+use_whitenoise:
+  type: bool
+  help: "Serve static files via WhiteNoise in production?"
+  default: true
+
+# ──────────────────────────────────────────────
+# Deploy environment
+# ──────────────────────────────────────────────
+corporate_ca_bundle:
+  type: bool
+  help: "Add the update-ca-certificates block to the Dockerfile?"
+  default: true
+
+gitlab_runner_image:
+  type: str
+  help: "Default image for GitLab CI jobs."
+  default: "python:{{ python_version }}-slim-trixie"
+
+open_source_license:
+  type: str
+  help: "License for the generated project."
+  default: "Proprietary"
+  choices:
+    - "Proprietary"
+    - "MIT"
+    - "Apache-2.0"
+    - "BSD-3-Clause"
