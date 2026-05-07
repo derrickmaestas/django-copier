@@ -32,11 +32,11 @@ test = [
     "pytest-django",
     "factory-boy",
     "coverage",
+    "pytest-cov>=7.1.0",
 ]
 prod = [
     "gunicorn",
     "whitenoise",
-    "sentry-sdk",
     "structlog",
 ]
 
@@ -86,10 +86,18 @@ python_functions = ["test_*"]
 # absent under syncdb. --reuse-db keeps the per-run cost low after
 # the first fresh DB; pass --create-db when you want to rebuild.
 addopts = "--ds=config.settings.test --reuse-db -q --import-mode=importlib"
+# Coverage thresholds and reporting move from a manual `pytest --cov`
+# to `[tool.coverage.report]` below; the report runs only when the
+# `--cov` flag is passed, so a fast `uv run pytest` with no flags
+# still skips the instrumentation overhead.
 
 [tool.coverage.run]
 source = ["apps/"]
 omit = ["*/migrations/*", "*/tests/*"]
+# Write coverage data under /tmp so the container's non-root planly user
+# can create the file. /app is owned by root in the runtime image and
+# the dev container inherits that ownership through the bind mount.
+data_file = "/tmp/.coverage"
 
 [tool.coverage.report]
 fail_under = 85

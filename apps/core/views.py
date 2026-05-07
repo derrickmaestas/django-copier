@@ -1,10 +1,33 @@
 from django.contrib.auth.decorators import login_required
+from django.db import DatabaseError, connection
+from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 from apps.plans.models import Plan
 from apps.tasks.models import Task
 
 ALLOWED_TYPES = {"plan", "task"}
+
+
+@require_GET
+def health(request):
+    """Liveness + readiness probe.
+
+    Returns 200 with `{"status": "ok"}` when the process is reachable
+    AND the database is. Returns 503 with `{"status": "db_unreachable"}`
+    when the database connection can't be established.
+
+    Authentication is intentionally NOT required: load balancers and
+    container orchestrators probe this endpoint without credentials.
+    The endpoint reveals only liveness — no app version, no user info,
+    no environment string — so leaving it public is safe.
+    """
+    try:
+        connection.ensure_connection()
+    except DatabaseError:
+        return JsonResponse({"status": "db_unreachable"}, status=503)
+    return JsonResponse({"status": "ok"})
 
 
 @login_required

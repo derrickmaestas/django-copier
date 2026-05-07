@@ -1,9 +1,41 @@
+from unittest.mock import patch
+
 import pytest
+from django.db import DatabaseError
 from django.urls import reverse
 
 from apps.accounts.tests.factories import MembershipFactory, TeamFactory, UserFactory
 from apps.plans.tests.factories import BucketFactory, PlanFactory
 from apps.tasks.tests.factories import CommentFactory, TaskFactory
+
+
+@pytest.mark.django_db
+class TestHealthEndpoint:
+    """`/health/` is a public liveness + readiness probe."""
+
+    def test_returns_200_when_db_is_reachable(self, client):
+        response = client.get(reverse("core:health"))
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_no_login_required(self, client):
+        """LB/orchestrator probes hit this endpoint without credentials."""
+        response = client.get(reverse("core:health"))
+        assert response.status_code == 200
+
+    def test_returns_503_when_db_is_down(self, client):
+        """Simulate a connection failure and assert the right status."""
+        with patch(
+            "apps.core.views.connection.ensure_connection",
+            side_effect=DatabaseError("fake outage"),
+        ):
+            response = client.get(reverse("core:health"))
+        assert response.status_code == 503
+        assert response.json() == {"status": "db_unreachable"}
+
+    def test_only_get_allowed(self, client):
+        response = client.post(reverse("core:health"))
+        assert response.status_code == 405
 
 
 @pytest.fixture

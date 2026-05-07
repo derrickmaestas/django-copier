@@ -2,7 +2,27 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import structlog
 from dotenv import load_dotenv
+
+# Wire structlog so any structlog.get_logger() call shares the same
+# processor pipeline as stdlib logging via ProcessorFormatter (see
+# LOGGING below). This block runs at import time — once, before
+# Django's own logging config is applied.
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
 
 # ──────────────────────────────────────────────
 # Paths
@@ -222,6 +242,42 @@ SPECTACULAR_SETTINGS = {
     # Tell spectacular about our URL versioning so /api/v1/ shows up in the
     # generated schema and Swagger UI's Try-It-Out hits the right path.
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+/",
+}
+
+# ──────────────────────────────────────────────
+# Logging — structlog with a console renderer for local dev
+# ──────────────────────────────────────────────
+# Both the stdlib `logging` calls and any direct `structlog.get_logger()`
+# call funnel through the same processor chain, so one configuration
+# covers both styles. Production overrides this with a JSON renderer
+# (see config/settings/production.py).
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        # The `()` key takes a callable that returns the formatter
+        # instance; the `processor` argument is the structlog renderer
+        # invoked at the end of the chain. ConsoleRenderer indents and
+        # colorizes for humans; production swaps in JSONRenderer.
+        "structlog_console": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.dev.ConsoleRenderer(),
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "structlog_console",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "django": {"level": "INFO", "propagate": True},
+        "planly": {"level": "DEBUG", "propagate": True},
+    },
 }
 
 # ──────────────────────────────────────────────

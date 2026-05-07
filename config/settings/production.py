@@ -1,5 +1,6 @@
 import os
 
+import structlog
 from django.core.exceptions import ImproperlyConfigured
 
 from config.settings.base import *  # noqa: F401, F403
@@ -122,31 +123,45 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@planly.example.com")
 
 # ──────────────────────────────────────────────
-# Caching — Redis
+# Caching — Postgres-backed (django.core.cache.backends.db)
 # ──────────────────────────────────────────────
+# We don't currently lean on the cache hard enough to justify operating
+# Redis as a separate service. The DatabaseCache stores cache rows in
+# the Postgres table created by `manage.py createcachetable` — slower
+# than Redis on raw GET/SET but zero extra services to manage, secure,
+# or back up.
+#
+# When this becomes a bottleneck (rate-limit counters, view-level
+# caching of the kanban board, session storage at high request rates),
+# swap CACHES to RedisCache + add a redis service to compose.prod.yaml.
+# Nothing else needs to change.
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "planly_cache_table",
     }
 }
 
 # ──────────────────────────────────────────────
-# Logging — structured for production
+# Logging — structlog with a JSON renderer for production
 # ──────────────────────────────────────────────
+# Same processor chain as in base.py; only the final renderer changes.
+# Stdout is the destination — Docker collects it; the corporate log
+# aggregator parses the JSON. One line per event, key-value structured,
+# no multi-line stack traces breaking line-based ingestion.
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "json": {
-            "()": "django.utils.log.ServerFormatter",
-            "format": "%(levelname)s %(asctime)s %(name)s %(message)s",
+        "structlog_json": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.processors.JSONRenderer(),
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "json",
+            "formatter": "structlog_json",
         },
     },
     "root": {

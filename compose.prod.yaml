@@ -1,27 +1,63 @@
 # compose.prod.yaml — production overrides
-# Usage: docker compose -f compose.yaml -f compose.prod.yaml up
+# Usage: docker compose -f compose.yaml -f compose.prod.yaml up -d
+#
+# Environment is read from .env.production (NOT the .env file
+# compose.override.yaml uses for local dev). Keep secrets out of
+# committed compose files; the deploy host is responsible for
+# placing .env.production with real values.
 
 services:
+  db:
+    # Override the dev compose's exposed port — production runs the DB
+    # on the private compose network only, never on the host.
+    ports: !reset []
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    restart: unless-stopped
+
   web:
     build: .
-    # Uses the Dockerfile CMD (gunicorn) — no command override
+    # Uses the Dockerfile CMD: gunicorn config.wsgi:application -c gunicorn.conf.py
     ports:
       - "8000:8000"
-    env_file: .env
+    env_file: .env.production
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DB_HOST: db
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      # The application's own /health/ endpoint — verifies the DB is
+      # reachable from the running gunicorn worker, not just from the
+      # init process. wget ships with the Debian slim base; no extra deps.
+      test:
+        - "CMD"
+        - "wget"
+        - "--quiet"
+        - "--tries=1"
+        - "--spider"
+        - "http://localhost:8000/health/"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   worker:
     build: .
-    command: python manage.py db_worker
-    env_file: .env
+    # Background task worker — drains the django.tasks queue stored in
+    # Postgres. One queue keeps this container processing everything;
+    # split into a second service when `notifications` deserves its own
+    # resource budget.
+    command: python manage.py db_worker --queue-name default
+    env_file: .env.production
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DB_HOST: db
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
