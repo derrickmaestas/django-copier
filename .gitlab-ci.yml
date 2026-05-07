@@ -1,0 +1,108 @@
+# GitLab CI for Planly.
+#
+# Runs on every push, blocks merge requests on failures, and exposes a
+# manual `deploy` stage for tagged releases. Each job is small and
+# focused — the goal is fast feedback (red within a minute or two) and
+# clear failure messages, not a single monolithic "all checks" job.
+
+# Use the official Python image. We install uv via the standalone
+# script rather than baking a custom image; it's a few seconds at
+# startup and keeps the CI config self-contained — anyone with a
+# GitLab runner can run this file without first publishing a base
+# image.
+default:
+  image: python:3.14-slim-trixie
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends libmagic1 libpq-dev gcc
+    - pip install --quiet uv
+    - uv sync --frozen --all-groups
+
+# Cache the uv-managed virtualenv between jobs and pipeline runs. uv
+# is fast on a cold cache (the lockfile resolves in seconds), so
+# missing the cache isn't catastrophic — it just wastes a minute.
+cache:
+  key:
+    files:
+      - uv.lock
+  paths:
+    - .venv/
+    - ~/.cache/uv
+
+stages:
+  - lint
+  - test
+  - validate
+  - deploy
+
+# ── lint ──────────────────────────────────────────────────────────
+# Ruff is fast (sub-second on this codebase). Run check + format
+# verification in one job; both have to pass.
+ruff:
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+# ── test ──────────────────────────────────────────────────────────
+# Postgres service runs alongside the job container. It must match the
+# version we run in production (compose.yaml) — feature drift between
+# pg17 and an older CI service is exactly the bug this project doesn't
+# want to hit.
+pytest:
+  stage: test
+  services:
+    - name: postgres:17
+      alias: db
+  variables:
+    POSTGRES_DB: planly
+    POSTGRES_USER: planly
+    POSTGRES_PASSWORD: planly
+    DB_HOST: db
+    DB_NAME: planly
+    DB_USER: planly
+    DB_PASSWORD: planly
+    DJANGO_SECRET_KEY: ci-secret-not-for-production
+  script:
+    # Coverage gate is wired into [tool.coverage.report] in pyproject.toml
+    # (fail_under = 85). The job fails when the gate trips.
+    - uv run pytest --cov
+
+# ── validate ──────────────────────────────────────────────────────
+# Schema and production-settings validation — these don't need the DB
+# but they do need every dep installed.
+schema:
+  stage: validate
+  script:
+    # Spectacular generates the OpenAPI schema from the live ViewSets
+    # and serializers; --fail-on-warn turns missing type hints, missing
+    # response annotations, and other introspection gaps into red CI.
+    - uv run python manage.py spectacular --validate --fail-on-warn > /dev/null
+
+deploy-check:
+  stage: validate
+  variables:
+    # Stub values just sufficient to clear the fail-fast guards in
+    # config/settings/production.py — we're checking the code path, not
+    # exercising real infrastructure.
+    DJANGO_SETTINGS_MODULE: config.settings.production
+    DJANGO_SECRET_KEY: ci-secret-50-chars-long-aaaaaaaaaaaaaaaaaaaaaaaa
+    DJANGO_ADMIN_URL: ci-prefix/
+    DJANGO_ALLOWED_HOSTS: ci.example.com
+    DB_PASSWORD: ci-password
+  script:
+    # Catches deploy-time misconfiguration — missing secure-cookie
+    # settings, weak SECRET_KEY, etc. — before any deploy script runs.
+    - uv run python manage.py check --deploy
+
+# ── deploy (manual) ───────────────────────────────────────────────
+# Pushed by tagging a release. Manual gate so a human is in the loop;
+# the actual deploy command is environment-specific (kubectl, ssh,
+# Fly, Railway, etc.) — leave the body empty here and fill it in when
+# the target is settled.
+deploy:
+  stage: deploy
+  script:
+    - echo "Tag $CI_COMMIT_TAG built; replace with your deploy command."
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\./'
+      when: manual

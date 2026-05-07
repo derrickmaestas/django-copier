@@ -6,6 +6,7 @@ By the end of this chapter you'll have:
 - pytest and pytest-django configured for your project
 - Dedicated test settings (`config.settings.test`) tuned for speed and isolation
 - Smoke tests that prove the pipeline works end-to-end
+- A **`.gitlab-ci.yml`** running ruff + pytest on every push, ready to grow into the full check matrix as later chapters add gates
 - An understanding of *why* each testing decision was made
 
 ---
@@ -301,6 +302,81 @@ The key insight: `base.py` uses `os.environ.get("DJANGO_SECRET_KEY", "")` with a
 
 ---
 
+---
+
+## Wire up GitLab CI
+
+The moment a project has a test suite, CI has something to run. Introducing CI now — at the bottom of Chapter 3, instead of buried in deployment — means every chapter from here on gets verified on every push, automatically. Failure to remember a `prefetch_related`, a missing migration, a regressed schema — caught in two minutes by CI rather than in week-three when something breaks in staging.
+
+We use **GitLab CI** because that's the corporate environment we're targeting. The same shape works on GitHub Actions, Bitbucket Pipelines, or Drone with light syntax changes.
+
+Create `.gitlab-ci.yml` at the repo root with two stages and two jobs:
+
+```yaml
+default:
+  image: python:3.14-slim-trixie
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends libmagic1 libpq-dev gcc
+    - pip install --quiet uv
+    - uv sync --frozen --all-groups
+
+cache:
+  key:
+    files:
+      - uv.lock
+  paths:
+    - .venv/
+    - ~/.cache/uv
+
+stages:
+  - lint
+  - test
+
+ruff:
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+pytest:
+  stage: test
+  services:
+    - name: postgres:17
+      alias: db
+  variables:
+    POSTGRES_DB: planly
+    POSTGRES_USER: planly
+    POSTGRES_PASSWORD: planly
+    DB_HOST: db
+    DB_NAME: planly
+    DB_USER: planly
+    DB_PASSWORD: planly
+    DJANGO_SECRET_KEY: ci-secret-not-for-production
+  script:
+    - uv run pytest
+```
+
+A few details earn a sentence:
+
+- **Two stages, not two jobs in one stage.** Lint runs first; if ruff fails, we don't waste a minute spinning up Postgres to find out the test won't even import. GitLab runs stages in order, and a failed earlier stage halts later ones.
+- **`postgres:17` as a service.** Tests need a real database (we'll lean on this hard once the FTS chapter introduces extensions and triggers). Pinning to `17` matches what `compose.yaml` uses locally — feature-drift between dev and CI is exactly the bug this project doesn't want to hit.
+- **`uv sync --frozen --all-groups`** in `before_script` installs every dependency group (dev, test, prod). The cache keyed on `uv.lock` means subsequent jobs reuse the venv unless lockfile changed.
+- **`DJANGO_SECRET_KEY: ci-secret-not-for-production`** is intentionally a string nobody could mistake for a real key. CI doesn't care about cryptographic strength; it just needs Django to boot.
+
+### CI grows alongside the project
+
+The file above is the bootstrap. Later chapters add one job each, in the chapter where the gate earns the right to exist:
+
+| Chapter | Job added | Gate |
+|---|---|---|
+| Ch 13 (DRF) | `schema` (validate) | OpenAPI introspection passes `--fail-on-warn` |
+| Ch 16 (Security) | `deploy-check` (validate) | `manage.py check --deploy` is clean against production settings |
+| Ch 18 (Deploy) | `--cov-fail-under=85` on `pytest`, plus a manual `deploy` stage | Coverage gate enforced; deploys gated on a tag |
+
+By Chapter 18 the file ends up with four stages — `lint`, `test`, `validate`, `deploy` — each a tight, focused job. We don't try to design that final shape now; we let each chapter add the slice that becomes provable when its feature lands.
+
+---
+
 ## Checkpoint
 
 Before moving on, verify:
@@ -308,5 +384,6 @@ Before moving on, verify:
 - [ ] `uv run pytest` passes all 2 tests
 - [ ] `uv run pytest -v` shows tests under `apps/core/tests/test_settings.py`
 - [ ] `uv run ruff check apps/ config/` reports no lint errors
+- [ ] `.gitlab-ci.yml` parses (`uv run python -c "import yaml; yaml.safe_load(open('.gitlab-ci.yml'))"`); push the branch and confirm both jobs go green in GitLab
 
 **Next:** [Chapter 4 — Core Models & Abstract Bases](04-core-models.md)

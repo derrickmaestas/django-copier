@@ -306,6 +306,22 @@ echo $?   # 0 = clean schema, non-zero = warnings or errors
 
 That's a single command for CI. Schema warnings are usually a missing type hint or a ViewSet without a queryset — small fixes that pay off forever once they're in place.
 
+> **Add to `.gitlab-ci.yml`** — append a `validate` stage and a `schema` job to the bootstrap CI from Ch 3:
+>
+> ```yaml
+> stages:
+>   - lint
+>   - test
+>   - validate    # new
+>
+> schema:
+>   stage: validate
+>   script:
+>     - uv run python manage.py spectacular --validate --fail-on-warn > /dev/null
+> ```
+>
+> From this commit on, any PR that introduces a serializer field without a type hint, a `SerializerMethodField` without a return annotation, or a ViewSet missing `queryset = Model.objects.none()` goes red in CI before it ever reaches review.
+
 ```python
 SPECTACULAR_SETTINGS = {
     "TITLE": "Planly API",

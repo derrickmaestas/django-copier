@@ -106,6 +106,26 @@ A few of these need a sentence:
 
 `manage.py check --deploy` runs against the production settings module and fails CI on any oversight here.
 
+> **Add to `.gitlab-ci.yml`** — second `validate` stage job:
+>
+> ```yaml
+> deploy-check:
+>   stage: validate
+>   variables:
+>     DJANGO_SETTINGS_MODULE: config.settings.production
+>     # Stub values just sufficient to clear the fail-fast guards in
+>     # production.py — we're checking the code path, not exercising
+>     # real infrastructure.
+>     DJANGO_SECRET_KEY: ci-secret-50-chars-long-aaaaaaaaaaaaaaaaaaaaaaaa
+>     DJANGO_ADMIN_URL: ci-prefix/
+>     DJANGO_ALLOWED_HOSTS: ci.example.com
+>     DB_PASSWORD: ci-password
+>   script:
+>     - uv run python manage.py check --deploy
+> ```
+>
+> This catches both the import-time fail-fast checks (a dropped env-var validation) and the framework's own deploy-time warnings (`security.W*` for missing secure cookies, weak SECRET_KEY, etc.) — every CI run, before any deploy script touches the box.
+
 ---
 
 ## Strict Content Security Policy

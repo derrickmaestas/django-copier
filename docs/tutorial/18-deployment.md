@@ -225,6 +225,36 @@ show_missing = true
 
 The gate runs only when you pass `--cov`; a plain `uv run pytest` skips the instrumentation cost (15s without coverage, 17s with). CI runs `uv run pytest --cov` once per build; developers run `uv run pytest` for the inner loop.
 
+> **Update `.gitlab-ci.yml`** — flip the existing `pytest` job to the coverage variant, and add the manual `deploy` stage:
+>
+> ```yaml
+> stages:
+>   - lint
+>   - test
+>   - validate
+>   - deploy        # new
+>
+> pytest:
+>   stage: test
+>   services:
+>     - name: postgres:17
+>       alias: db
+>   variables:
+>     # …existing DB_* + DJANGO_SECRET_KEY values…
+>   script:
+>     - uv run pytest --cov   # was `uv run pytest`
+>
+> deploy:
+>   stage: deploy
+>   script:
+>     - echo "Tag $CI_COMMIT_TAG built; replace with your deploy command."
+>   rules:
+>     - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\./'
+>       when: manual
+> ```
+>
+> The `deploy` job's `rules` block restricts it to tag pushes matching `v*`, and `when: manual` keeps a human in the loop — no autopilot deploy on tag. Replace the placeholder echo with the real deploy command (kubectl apply, ssh deploy script, Fly machine deploy, etc.) when the target is settled.
+
 The 5% that *isn't* covered is mostly:
 - Error branches we can't easily exercise (the `except DatabaseError` branch of `/health/` when migrations are running — exercised by mocking)
 - Some HTMX view branches that only fire for invalid form input on the API (covered indirectly)

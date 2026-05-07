@@ -371,6 +371,8 @@ addopts = "--ds=config.settings.test --reuse-db -q --import-mode=importlib"
 
 `--reuse-db` keeps the cost low — once the test DB is built, every subsequent run reuses it. When you change a migration, pass `--create-db` once to rebuild from scratch.
 
+> **No new CI job this chapter — but verify the existing one still passes.** The `pytest` job introduced in Ch 3 already declares `services: postgres:17` and a fresh database per pipeline run, so the FTS migrations execute end-to-end on every push. If `pytest` goes red after this chapter, suspect migration order: confirm `core/0001_extensions.py` runs before `plans/0002_…` and `tasks/0002_…` (the latter two declare an explicit `dependencies` line on `core/0001_extensions`).
+
 ### Test-only concrete models that previously got tables for free
 
 `apps/core/tests/test_models.py` declares `ConcreteTimeStamped`, `ConcreteOrdered`, and `ConcreteTimeStampedOrdered` purely to exercise the abstract bases. Under `--no-migrations` syncdb saw them as installed models and created tables. Under proper migrations there's no migration operation that would. We restore the missing tables in `apps/conftest.py` with a session-scoped, autouse fixture that uses `connection.schema_editor()` to create them once and drop them at session end:
