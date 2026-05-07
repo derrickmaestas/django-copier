@@ -54,7 +54,7 @@ django-planner/
 │   ├── accounts/            # Custom User keyed on employee_id, Team, Membership
 │   ├── plans/               # Plan + Bucket + per-app api/ subpackage
 │   ├── tasks/               # Task + Assignment + ChecklistItem + Label + Comment + signals + api/
-│   ├── attachments/         # Attachment model + upload validators + form
+│   ├── attachments/         # Attachment model, upload validators, HTMX upload/delete views
 │   └── notifications/       # Notification model + django.tasks fan-out + api/
 ├── config/                  # Project package — settings/, urls.py, wsgi.py, asgi.py
 │   └── settings/

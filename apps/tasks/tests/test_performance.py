@@ -84,10 +84,10 @@ class TestTaskDetailViewQueryCount:
             CommentFactory(task=task, created_by=user)
 
         client.force_login(user)
-        # Seven queries: session lookup, current user, the Task SELECT (with
-        # for_user JOIN), and four prefetches — checklist_items, assignees
-        # (M2M through-table), comments (one prefetch covers the
-        # select_related on created_by inside the Prefetch).
-        with django_assert_num_queries(7):
+        # Eight queries: session lookup, current user, the Task SELECT (with
+        # for_user JOIN), and five prefetches — checklist_items, assignees
+        # (M2M through-table), attachments, comments (one prefetch covers
+        # the select_related on created_by inside the Prefetch).
+        with django_assert_num_queries(8):
             response = client.get(f"/tasks/{task.pk}/")
         assert response.status_code == 200

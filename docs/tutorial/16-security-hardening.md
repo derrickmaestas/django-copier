@@ -212,7 +212,9 @@ Even with `attachment_upload_path` rooted at `/attachments/task_<id>/`, a filena
 
 ### Form vs serializer
 
-We expose the validation as a `clean_file` on the form so the (eventual) HTML upload page benefits without thinking about it. The same validators are imported and called from the API serializer the day we add an API endpoint for uploads. Same code, same error messages, same allowlists.
+We expose the validation as a `clean_file` on the form so the HTML upload page (covered in Chapter 11, §10.6) and any future API serializer share one code path. Same allowlist, same MIME-sniff, same error messages — change the rule once, every entry point picks it up.
+
+> **One subtlety in `clean_file`.** The validators raise `ValidationError({"file": "..."})` — the *dict* form, which is what a model's `clean()` method returns so a multi-field validation can attribute each error to the right field. Inside a form's `clean_<fieldname>`, the contract is the opposite: raise the bare message and Django files it under `<fieldname>` automatically. The form unwraps the validators' dict-style error into a plain message before re-raising it, so a model-style error gets surfaced correctly through the form-style API. See `apps/attachments/forms.py` for the exact pattern.
 
 ---
 

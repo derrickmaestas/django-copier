@@ -440,7 +440,7 @@ The HTMX response is the partial. The non-HTMX response is a redirect. The form 
 
 ---
 
-## Step 10: The Five HTMX Patterns
+## Step 10: Six HTMX Patterns
 
 We use the task detail page as a showcase for five canonical HTMX patterns. Each one is small. Read them as variations on a theme.
 
@@ -664,6 +664,69 @@ Two patterns layered together:
 
 We could in principle skip server-side scoping on the assign view because the picker only renders valid candidates — but never trust the client. The picker is a UX hint; the server is the boundary.
 
+### 10.6 Multipart file upload (attachments)
+
+The five patterns above all transmit form-encoded text; attachments need a `multipart/form-data` body. HTMX makes this one extra attribute on the form:
+
+```django
+{# Inside task_detail.html — the Attachments section #}
+<form id="attachment-form"
+      hx-post="{% url 'attachments:attachment-upload' task.pk %}"
+      hx-target="#attachment-list"
+      hx-swap="beforeend"
+      hx-encoding="multipart/form-data"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+      class="mt-3 space-y-2">
+  {% csrf_token %}
+  <input type="file" name="file" required ...>
+  <button type="submit">Upload</button>
+</form>
+```
+
+The new attribute is `hx-encoding="multipart/form-data"`. Without it, HTMX serializes the form as `application/x-www-form-urlencoded` — which can't carry a binary file. With it, HTMX uses the browser's native `FormData` API and the `<input type="file">` value gets attached as a real file part, exactly as a non-HTMX form would.
+
+Three details earn their lines on the view side:
+
+```python
+# apps/attachments/views.py
+@login_required
+@require_POST
+def attachment_upload(request, task_pk):
+    task = get_object_or_404(Task.objects.for_user(request.user), pk=task_pk)
+    form = AttachmentForm(request.POST, request.FILES)
+    if form.is_valid():
+        attachment = form.save(commit=False)
+        attachment.task = task
+        attachment.uploaded_by = request.user
+        attachment.filename = form.cleaned_data["file"].name
+        attachment.content_type = form.cleaned_data["file"].content_type or ""
+        attachment.save()
+        if _is_htmx(request):
+            return render(
+                request,
+                "tasks/task_detail.html#attachment_item",
+                {"attachment": attachment},
+            )
+        return HttpResponseRedirect(reverse("tasks:task-detail", kwargs={"pk": task.pk}))
+
+    if _is_htmx(request):
+        return render(
+            request,
+            "tasks/task_detail.html#attachment_form_errors",
+            {"task": task, "form": form},
+            status=422,
+        )
+    return HttpResponseRedirect(reverse("tasks:task-detail", kwargs={"pk": task.pk}))
+```
+
+- **`request.FILES` is the second argument** to `AttachmentForm(...)` — Django splits multipart bodies into `request.POST` (text fields) and `request.FILES` (file parts). A form bound only to `request.POST` won't see the file.
+- **`form.is_valid()` runs `clean_file()`** which calls the validator stack from the Security chapter (filename safety, size cap, libmagic content-type sniff). A reject path returns a 422 with the rendered error so HTMX can show the message inline; a 200 with the new `<li>` partial appends to the list.
+- **`task = get_object_or_404(Task.objects.for_user(request.user), pk=task_pk)`** is the same team-scoping pattern every other view uses. Non-members can't upload to a task they can't see — they get 404, not 403.
+
+The delete pattern reuses §10.3 wholesale — `hx-post` to a delete URL, `hx-target` the row's `id`, `hx-swap="outerHTML"`, return an empty 200 to remove it from the DOM. Nothing new there beyond the queryset scoping (`Attachment.objects.for_user(request.user)`).
+
+> **Why a separate validator module instead of inline `clean_file`.** The attachment validators in `apps/attachments/validators.py` are reused in three places: this form, the (future) DRF serializer, and any bulk-import management command. Keeping them in a single module means one allowlist, one MIME-sniff routine, one filename-safety check — change the rule once, every entry path picks it up. We cover the validators in detail in the Security Hardening chapter.
+
 ---
 
 ## Step 11: Why `template.html#partial_name` Beats Includes
@@ -759,12 +822,13 @@ add Chapter 11 — Tailwind, HTMX, and partials
     templates/partials/_confirm_delete.html
 * Tailwind-styled pages: home, login, plan list, plan detail (kanban),
   task detail, task forms, label/bucket/task confirms, notifications list
-* Five HTMX patterns implemented end-to-end on task detail:
+* Six HTMX patterns implemented end-to-end on task detail:
   - Toggle: checklist item complete/incomplete
   - Append: add checklist item, add comment
-  - Delete-and-remove: checklist item delete, unassign
+  - Delete-and-remove: checklist item delete, unassign, delete attachment
   - Click-to-edit: task title
   - Picker: assign team member
+  - Multipart upload: attachments via hx-encoding="multipart/form-data"
 * All endpoints branch on HX-Request header — HTMX gets a partial
   via template.html#partial_name, non-HTMX gets a redirect (non-JS fallback)
 * docs/tutorial/11-templates-htmx.md

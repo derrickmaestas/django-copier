@@ -4,6 +4,8 @@ from django.db import models
 
 from apps.core.models import TimeStampedModel
 
+from .querysets import AttachmentQuerySet
+
 
 def attachment_upload_path(instance: Attachment, filename: str) -> str:
     """Group uploaded files under a per-task directory."""
@@ -28,6 +30,8 @@ class Attachment(TimeStampedModel):
     filename = models.CharField(max_length=255)
     size_bytes = models.PositiveBigIntegerField(default=0)
     content_type = models.CharField(max_length=100, blank=True)
+
+    objects = AttachmentQuerySet.as_manager()
 
     class Meta:
         ordering = ["-created_at"]

@@ -12,6 +12,7 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("plans/", include("apps.plans.urls", namespace="plans")),
     path("tasks/", include("apps.tasks.urls", namespace="tasks")),
+    path("attachments/", include("apps.attachments.urls", namespace="attachments")),
     path("notifications/", include("apps.notifications.urls", namespace="notifications")),
     path("api/v1/", include("config.api_router")),
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),

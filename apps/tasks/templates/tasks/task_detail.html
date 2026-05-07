@@ -46,6 +46,50 @@
 </article>
 {% endpartialdef %}
 
+{% partialdef attachment_item %}
+<li id="attachment-{{ attachment.pk }}"
+    class="flex items-center justify-between gap-2 py-1.5 text-sm group">
+  <a href="{{ attachment.file.url }}"
+     class="flex-1 truncate text-indigo-600 hover:text-indigo-700"
+     download>
+    {{ attachment.filename }}
+  </a>
+  <span class="shrink-0 text-xs text-slate-500">{{ attachment.size_mb }} MB</span>
+  <button type="button"
+          hx-post="{% url 'attachments:attachment-delete' attachment.pk %}"
+          hx-target="#attachment-{{ attachment.pk }}"
+          hx-swap="outerHTML"
+          hx-confirm="Delete this attachment?"
+          class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-600 cursor-pointer"
+          aria-label="Delete">
+    ×
+  </button>
+</li>
+{% endpartialdef %}
+
+{% partialdef attachment_form_errors %}
+{# Re-rendered when clean_file rejects the upload — replaces the form
+   in place with the same fields, plus an inline error message. #}
+<form id="attachment-form"
+      hx-post="{% url 'attachments:attachment-upload' task.pk %}"
+      hx-target="#attachment-list"
+      hx-swap="beforeend"
+      hx-encoding="multipart/form-data"
+      hx-on::after-request="if(event.detail.successful) this.reset()"
+      class="mt-3 space-y-2">
+  {% csrf_token %}
+  <input type="file" name="file" required
+         class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100">
+  {% for error in form.file.errors %}
+    <p class="text-xs text-red-600">{{ error }}</p>
+  {% endfor %}
+  <button type="submit"
+          class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700">
+    Upload
+  </button>
+</form>
+{% endpartialdef %}
+
 {% partialdef assignees %}
 <div id="task-assignees" class="space-y-2">
   {% if task.assignees.all %}
@@ -193,6 +237,35 @@
         <button type="submit"
                 class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700">
           Post
+        </button>
+      </form>
+    </section>
+
+    {# Attachments #}
+    <section class="rounded-lg bg-white p-4 shadow-sm border border-slate-200">
+      <h2 class="text-sm font-semibold text-slate-900 mb-2">Attachments</h2>
+
+      <ul id="attachment-list" class="divide-y divide-slate-100">
+        {% for attachment in task.attachments.all %}
+          {% partial attachment_item %}
+        {% empty %}
+          <li class="text-xs text-slate-500 italic py-1.5">No files attached.</li>
+        {% endfor %}
+      </ul>
+
+      <form id="attachment-form"
+            hx-post="{% url 'attachments:attachment-upload' task.pk %}"
+            hx-target="#attachment-list"
+            hx-swap="beforeend"
+            hx-encoding="multipart/form-data"
+            hx-on::after-request="if(event.detail.successful) this.reset()"
+            class="mt-3 space-y-2">
+        {% csrf_token %}
+        <input type="file" name="file" required
+               class="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100">
+        <button type="submit"
+                class="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700">
+          Upload
         </button>
       </form>
     </section>
