@@ -1,0 +1,56 @@
+# Local-development Dockerfile.
+#
+# Same base as production but installs all dependency groups (dev, test)
+# and runs `manage.py runserver` instead of gunicorn. Used by
+# compose.local.yml.
+
+FROM debian:trixie-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+{%- if use_htmx %}
+ARG TAILWIND_VERSION={{ tailwind_version }}
+{%- endif %}
+{%- if corporate_ca_bundle %}
+COPY corporate-ca.crt /usr/local/share/ca-certificates/corporate-ca.crt
+{%- endif %}
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc libpq-dev libpq5 ca-certificates \
+{%- if use_attachments %}
+        libmagic1 \
+{%- endif %}
+{%- if use_htmx %}
+        curl \
+{%- endif %}
+        && \
+{%- if use_htmx %}
+    curl -fsSL -o /usr/local/bin/tailwindcss \
+        "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64" && \
+    chmod +x /usr/local/bin/tailwindcss && \
+{%- endif %}
+{%- if corporate_ca_bundle %}
+    update-ca-certificates && \
+{%- endif %}
+    rm -rf /var/lib/apt/lists/*
+
+ENV UV_PYTHON_INSTALL_DIR=/python
+RUN uv python install {{ python_version }}
+
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --all-groups
+
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --all-groups
+
+ENV PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8000
+
+CMD ["uv", "run", "manage.py", "runserver", "0.0.0.0:8000"]

@@ -1,0 +1,24 @@
+# lefthook.yml — pre-commit and pre-push hooks.
+#
+# Install:  uv tool install lefthook && lefthook install
+# Run manually:  lefthook run pre-commit
+
+pre-commit:
+  parallel: true
+  commands:
+    ruff-check:
+      glob: "*.py"
+      run: uv run ruff check {staged_files}
+
+    ruff-format:
+      glob: "*.py"
+      run: uv run ruff format --check {staged_files}
+
+    ty-check:
+      glob: "*.py"
+      run: uv run ty check
+
+pre-push:
+  commands:
+    pytest:
+      run: uv run pytest -q

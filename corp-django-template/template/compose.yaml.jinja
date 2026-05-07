@@ -1,0 +1,23 @@
+# compose.yaml — base service definitions.
+# Used by all environments. Override with compose.local.yml (dev) or
+# compose.production.yml.
+
+services:
+  db:
+    image: postgres:{{ postgresql_version }}
+    environment:
+      POSTGRES_DB: {{ package_slug }}
+      POSTGRES_USER: {{ package_slug }}
+      POSTGRES_PASSWORD: {{ package_slug }}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ package_slug }}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

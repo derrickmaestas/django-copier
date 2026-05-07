@@ -1,0 +1,98 @@
+# compose.local.yml — development overrides (auto-loaded as compose.override.yml).
+# Adds web{% if use_notifications %} + worker{% endif %}{% if use_htmx %} + tailwind{% endif %} containers with file watching for hot-reload.
+#
+# Start with:  docker compose up --watch
+# Or:          docker compose watch     (watch-only, no log streaming)
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: compose/local/django/Dockerfile
+    command: uv run manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./templates:/app/templates
+      - ./static:/app/static
+    develop:
+      watch:
+        - action: sync
+          path: ./apps
+          target: /app/apps
+        - action: sync
+          path: ./config
+          target: /app/config
+        - action: sync
+          path: ./templates
+          target: /app/templates
+        - action: sync
+          path: ./static
+          target: /app/static
+        - action: sync+restart
+          path: ./.env
+          target: /app/.env
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+{%- if use_notifications %}
+
+  worker:
+    build:
+      context: .
+      dockerfile: compose/local/django/Dockerfile
+    command: uv run manage.py db_worker
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ./apps
+          target: /app/apps
+        - action: sync
+          path: ./config
+          target: /app/config
+        - action: sync+restart
+          path: ./.env
+          target: /app/.env
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./uv.lock
+{%- endif %}
+{%- if use_htmx %}
+
+  tailwind:
+    build:
+      context: .
+      dockerfile: compose/local/django/Dockerfile
+    user: root
+    command: uv run manage.py tailwind watch
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps:/app/apps
+      - ./config:/app/config
+      - ./templates:/app/templates
+      - ./static:/app/static
+{%- endif %}

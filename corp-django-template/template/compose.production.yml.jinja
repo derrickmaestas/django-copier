@@ -1,0 +1,59 @@
+# compose.production.yml — production overrides
+# Usage: docker compose -f compose.yaml -f compose.production.yml up -d
+#
+# Environment is read from .env.production (NOT the .env file
+# compose.local.yml uses for local dev). Keep secrets out of
+# committed compose files; the deploy host is responsible for
+# placing .env.production with real values.
+
+services:
+  db:
+    ports: !reset []
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: compose/production/django/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env.production
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "--quiet"
+        - "--tries=1"
+        - "--spider"
+        - "http://localhost:8000/health/"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+{%- if use_notifications %}
+
+  worker:
+    build:
+      context: .
+      dockerfile: compose/production/django/Dockerfile
+    command: python manage.py db_worker --queue-name default
+    env_file: .env.production
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DB_HOST: db
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+{%- endif %}
