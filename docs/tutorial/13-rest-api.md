@@ -91,6 +91,8 @@ SIMPLE_JWT = {
 
 Short access tokens, longer refresh tokens — the standard pattern. If you later want logout-with-revocation, add `rest_framework_simplejwt.token_blacklist` to `INSTALLED_APPS` and run its migrations; we don't here because there's nothing yet that needs revocation.
 
+> **Deploying with corporate SSO?** When the IdP issues JWTs (rather than Planly minting its own), `simplejwt` is replaced by a small `OIDCJWTAuthentication` class that validates against the IdP's JWKS endpoint. The `/api/v1/auth/token/` endpoint goes away — the IdP is the token issuer. See [Appendix A — Corporate SSO via OIDC](appendix-a-corporate-sso.md) for the full swap.
+
 ---
 
 ## Permissions: keep the primary defense in the queryset

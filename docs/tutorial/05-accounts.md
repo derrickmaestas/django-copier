@@ -480,4 +480,6 @@ Before moving on, verify:
 - [ ] `uv run python manage.py migrate` completes with no errors
 - [ ] `apps/accounts/migrations/0001_initial.py` exists
 
+> **Deploying into a corporate environment with SSO?** Username/password authentication can be replaced wholesale by OIDC against your corporate IdP — the `User` model and `Membership` system stay exactly as designed in this chapter. See [Appendix A — Corporate SSO via OIDC](appendix-a-corporate-sso.md) for the full migration path, including the claim → `employee_id` mapping that keys off the primary key we just defined.
+
 **Next:** [Chapter 6 — Plans & Tasks: The Core Domain](06-plans-tasks.md)
