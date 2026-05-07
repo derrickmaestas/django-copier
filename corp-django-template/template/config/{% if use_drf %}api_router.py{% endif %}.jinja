@@ -1,0 +1,30 @@
+"""Aggregator for the v1 REST API.
+
+Mounted at `/api/v1/` from `config/urls.py`. Each app exposes its own
+`api/urls.py` (typically with a per-app DefaultRouter for its
+ViewSets); we splice them in flat so resources sit directly under
+`/api/v1/` rather than under per-app prefixes.
+
+URL-path versioning is configured globally in
+`REST_FRAMEWORK["DEFAULT_VERSIONING_CLASS"]`; the `v1` segment in
+`config/urls.py` is what URLPathVersioning reads to set
+`request.version`.
+"""
+
+from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
+urlpatterns = [
+    path("", include("apps.accounts.api.urls")),
+    path("", include("apps.example.api.urls")),
+{%- if use_notifications %}
+    path("", include("apps.notifications.api.urls")),
+{%- endif %}
+    path("", include("apps.core.api.urls")),
+    path("schema/", SpectacularAPIView.as_view(), name="api-schema"),
+    path(
+        "docs/",
+        SpectacularSwaggerView.as_view(url_name="api-schema"),
+        name="api-docs",
+    ),
+]

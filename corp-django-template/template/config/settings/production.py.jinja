@@ -1,0 +1,191 @@
+import os
+
+import structlog
+from django.core.exceptions import ImproperlyConfigured
+
+from config.settings.base import *  # noqa: F401, F403
+
+DEBUG = False
+
+# ──────────────────────────────────────────────
+# Fail-fast environment validation
+# ──────────────────────────────────────────────
+# Raise on import — never let a misconfigured prod boot up far enough to
+# accept traffic. Each check covers a setting whose insecure default
+# would compromise the deploy in a different way.
+
+# 1. SECRET_KEY: signs sessions and password resets.
+if not SECRET_KEY:  # noqa: F405
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY environment variable must be set in production."
+    )
+
+# 2. ADMIN_URL: shipping `/admin/` in prod hands bots a free login page.
+if ADMIN_URL == "admin/":  # noqa: F405
+    raise ImproperlyConfigured(
+        "DJANGO_ADMIN_URL must be overridden in production "
+        "(do not ship the default `admin/` path)."
+    )
+
+# 3. ALLOWED_HOSTS: missing env var is more usefully diagnosed up-front.
+ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
+if not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "DJANGO_ALLOWED_HOSTS must list at least one hostname in production."
+    )
+
+# 4. DB_PASSWORD: the only field on the connection that's secret.
+if not os.environ.get("DB_PASSWORD"):
+    raise ImproperlyConfigured(
+        "DB_PASSWORD environment variable must be set in production."
+    )
+{%- if auth_method == "oidc" %}
+
+# 5. OIDC required env. Without these, login is broken.
+for _var in ("OIDC_DISCOVERY_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET"):
+    if not os.environ.get(_var):
+        raise ImproperlyConfigured(f"{_var} must be set in production.")
+{%- if use_drf %}
+for _var in ("OIDC_JWKS_URL", "OIDC_ISSUER", "OIDC_API_AUDIENCE"):
+    if not os.environ.get(_var):
+        raise ImproperlyConfigured(f"{_var} must be set in production.")
+{%- endif %}
+{%- endif %}
+
+# ──────────────────────────────────────────────
+# Security headers
+# ──────────────────────────────────────────────
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 31_536_000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "same-origin"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# ──────────────────────────────────────────────
+# Content Security Policy (Django 6 built-in)
+# ──────────────────────────────────────────────
+SECURE_CSP = {
+    "default-src": ("'self'",),
+    "script-src": ("'self'",),
+    "style-src": ("'self'",),
+    "img-src": ("'self'", "data:"),
+    "font-src": ("'self'",),
+    "connect-src": ("'self'",),
+    "frame-ancestors": ("'none'",),
+    "base-uri": ("'self'",),
+    "form-action": ("'self'",),
+}
+
+MIDDLEWARE = [  # noqa: F405
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
+    *MIDDLEWARE,  # noqa: F405
+]
+{%- if use_whitenoise %}
+
+# ──────────────────────────────────────────────
+# Static files — whitenoise
+# ──────────────────────────────────────────────
+MIDDLEWARE.insert(  # noqa: F405
+    MIDDLEWARE.index("django.contrib.sessions.middleware.SessionMiddleware"),  # noqa: F405
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+)
+{%- endif %}
+
+STORAGES = {
+{%- if use_attachments %}
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": os.environ.get("AWS_STORAGE_BUCKET_NAME", ""),
+            "region_name": os.environ.get("AWS_S3_REGION_NAME", "us-east-1"),
+            "endpoint_url": os.environ.get("AWS_S3_ENDPOINT_URL", ""),
+            "custom_domain": os.environ.get("AWS_S3_CUSTOM_DOMAIN", ""),
+        },
+    },
+{%- else %}
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+{%- endif %}
+{%- if use_whitenoise %}
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+{%- else %}
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+{%- endif %}
+}
+
+# ──────────────────────────────────────────────
+# Email — real SMTP
+# ──────────────────────────────────────────────
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.{{ domain_name }}")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@{{ domain_name }}")
+
+# ──────────────────────────────────────────────
+# Caching — Postgres-backed (django.core.cache.backends.db)
+# ──────────────────────────────────────────────
+# Zero extra services to manage. Swap to Redis when contention demands.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "{{ package_slug }}_cache_table",
+    }
+}
+
+# ──────────────────────────────────────────────
+# Background Tasks — DatabaseBackend (drained by `manage.py db_worker`)
+# ──────────────────────────────────────────────
+TASKS = {
+    "default": {
+        "BACKEND": "django.tasks.backends.database.DatabaseBackend",
+    }
+}
+
+# ──────────────────────────────────────────────
+# Logging — structlog with a JSON renderer for production
+# ──────────────────────────────────────────────
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "structlog_json": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.processors.JSONRenderer(),
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "structlog_json",
+        },
+    },
+    "root": {
+        "level": "WARNING",
+        "handlers": ["console"],
+    },
+    "loggers": {
+        "django": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "{{ package_slug }}": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
+    },
+}

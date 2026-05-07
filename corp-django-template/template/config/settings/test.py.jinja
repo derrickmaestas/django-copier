@@ -1,0 +1,54 @@
+from config.settings.base import *  # noqa: F401, F403
+
+DEBUG = False
+SECRET_KEY = "insecure-test-key-do-not-use-in-production"  # noqa: S105
+
+# ──────────────────────────────────────────────
+# Fast password hashing — tests run 10x faster
+# ──────────────────────────────────────────────
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
+
+# ──────────────────────────────────────────────
+# Email — capture, don't send
+# ──────────────────────────────────────────────
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
+# ──────────────────────────────────────────────
+# Caching — per-test isolation
+# ──────────────────────────────────────────────
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}
+
+# ──────────────────────────────────────────────
+# Background Tasks — inspect without executing
+# ──────────────────────────────────────────────
+TASKS = {
+    "default": {
+        "BACKEND": "django.tasks.backends.dummy.DummyBackend",
+    }
+}
+
+# ──────────────────────────────────────────────
+# Media — use temp directory for uploaded files
+# ──────────────────────────────────────────────
+import tempfile  # noqa: E402
+
+MEDIA_ROOT = tempfile.mkdtemp()
+{%- if auth_method == "oidc" %}
+
+# Stub OIDC env so settings load doesn't error. Tests mock the
+# endpoints; we never make real network calls in CI.
+OIDC_OP_DISCOVERY_ENDPOINT = "https://idp.test/.well-known/openid-configuration"
+OIDC_RP_CLIENT_ID = "ci-client"
+OIDC_RP_CLIENT_SECRET = "ci-secret"  # noqa: S105
+{%- if use_drf %}
+OIDC_OP_JWKS_ENDPOINT = "https://idp.test/jwks.json"
+OIDC_OP_ISSUER = "https://idp.test"
+OIDC_API_AUDIENCE = "{{ project_slug }}-api"
+{%- endif %}
+{%- endif %}

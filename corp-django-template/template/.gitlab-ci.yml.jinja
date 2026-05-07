@@ -1,0 +1,87 @@
+# GitLab CI for {{ project_name }}.
+#
+# Runs on every push, blocks merge requests on failures.
+
+default:
+  image: {{ gitlab_runner_image }}
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends {% if use_attachments %}libmagic1 {% endif %}libpq-dev gcc
+    - pip install --quiet uv
+    - uv sync --frozen --all-groups
+
+cache:
+  key:
+    files:
+      - uv.lock
+  paths:
+    - .venv/
+    - ~/.cache/uv
+
+stages:
+  - lint
+  - test
+  - validate
+
+# ── lint ──────────────────────────────────────────────────────────
+ruff:
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+
+# ── test ──────────────────────────────────────────────────────────
+pytest:
+  stage: test
+  services:
+    - name: postgres:{{ postgresql_version }}
+      alias: db
+  variables:
+    POSTGRES_DB: {{ package_slug }}
+    POSTGRES_USER: {{ package_slug }}
+    POSTGRES_PASSWORD: {{ package_slug }}
+    DB_HOST: db
+    DB_NAME: {{ package_slug }}
+    DB_USER: {{ package_slug }}
+    DB_PASSWORD: {{ package_slug }}
+    DJANGO_SECRET_KEY: ci-secret-not-for-production
+{%- if auth_method == "oidc" %}
+    OIDC_DISCOVERY_URL: https://idp.test/.well-known/openid-configuration
+    OIDC_CLIENT_ID: ci-client
+    OIDC_CLIENT_SECRET: ci-secret
+{%- if use_drf %}
+    OIDC_JWKS_URL: https://idp.test/jwks.json
+    OIDC_ISSUER: https://idp.test
+    OIDC_API_AUDIENCE: {{ project_slug }}-api
+{%- endif %}
+{%- endif %}
+  script:
+    - uv run pytest --cov
+
+# ── validate ──────────────────────────────────────────────────────
+{%- if use_drf %}
+schema:
+  stage: validate
+  script:
+    - uv run python manage.py spectacular --validate --fail-on-warn > /dev/null
+{%- endif %}
+
+deploy-check:
+  stage: validate
+  variables:
+    DJANGO_SETTINGS_MODULE: config.settings.production
+    DJANGO_SECRET_KEY: ci-secret-50-chars-long-aaaaaaaaaaaaaaaaaaaaaaaa
+    DJANGO_ADMIN_URL: ci-prefix/
+    DJANGO_ALLOWED_HOSTS: ci.example.com
+    DB_PASSWORD: ci-password
+{%- if auth_method == "oidc" %}
+    OIDC_DISCOVERY_URL: https://idp.test/.well-known/openid-configuration
+    OIDC_CLIENT_ID: ci-client
+    OIDC_CLIENT_SECRET: ci-secret
+{%- if use_drf %}
+    OIDC_JWKS_URL: https://idp.test/jwks.json
+    OIDC_ISSUER: https://idp.test
+    OIDC_API_AUDIENCE: {{ project_slug }}-api
+{%- endif %}
+{%- endif %}
+  script:
+    - uv run python manage.py check --deploy
