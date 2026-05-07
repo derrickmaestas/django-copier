@@ -33,6 +33,7 @@ class TaskDetailView(TaskScopedQuerysetMixin, DetailView):
             .get_queryset()
             .prefetch_related(
                 "checklist_items",
+                "assignees",
                 Prefetch(
                     "comments",
                     queryset=Comment.objects.select_related("created_by"),
