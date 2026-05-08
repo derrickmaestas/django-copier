@@ -1,0 +1,84 @@
+"""Corporate API gateway authentication skeleton.
+
+Trusts headers set by the corporate API gateway to identify the user.
+The gateway is responsible for authenticating the user (cert, SSO,
+whatever) and forwarding identifying claims as headers; Django trusts
+those headers and looks up (or creates) the local row.
+
+# TODO(team): Several knobs need filling in before this is
+# production-ready. Search this file for `TODO(team)` to find them all.
+# At minimum:
+#   1. The exact header names your gateway sets.
+#   2. Signature verification, if the gateway signs forwarded headers.
+#   3. The group-claim → Membership.role mapping.
+#   4. Tightening which upstream IPs are trusted to set these headers
+#      (should be enforced at the proxy/firewall layer, not here, but
+#      a defense-in-depth check inside the middleware is worth adding).
+"""
+
+from django.contrib.auth.backends import RemoteUserBackend
+from django.contrib.auth.middleware import RemoteUserMiddleware
+
+from .models import User
+
+# TODO(team): confirm these match your corporate gateway's conventions.
+HEADER_EMPLOYEE_ID = "HTTP_X_FORWARDED_USER"
+HEADER_EMAIL = "HTTP_X_FORWARDED_EMAIL"
+HEADER_NAME = "HTTP_X_FORWARDED_NAME"
+HEADER_GROUPS = "HTTP_X_FORWARDED_GROUPS"
+
+
+class GatewayRemoteUserMiddleware(RemoteUserMiddleware):
+    """Read the gateway's identity header and pass it to the backend."""
+
+    header = HEADER_EMPLOYEE_ID
+
+    # TODO(team): if the gateway signs its forwarded headers, validate
+    # the signature here BEFORE setting request.META. Otherwise an
+    # attacker who reaches Django directly (bypassing the gateway) can
+    # forge any user. The proxy/firewall should already prevent this,
+    # but layered defense costs almost nothing.
+
+
+class GatewayRemoteUserBackend(RemoteUserBackend):
+    """Look up (or create) a User from the gateway's headers."""
+
+    create_unknown_user = True
+
+    def authenticate(self, request, remote_user=None):
+        if not remote_user:
+            return None
+        try:
+            employee_id = int(remote_user)
+        except (TypeError, ValueError):
+            return None
+
+        meta = request.META if request is not None else {}
+        defaults = {
+            "email": meta.get(HEADER_EMAIL, ""),
+            "display_name": meta.get(HEADER_NAME, ""),
+        }
+        user, created = User.objects.get_or_create(
+            employee_id=employee_id, defaults=defaults
+        )
+        if created:
+            user.set_unusable_password()
+            user.save(update_fields=["password"])
+        else:
+            # Sync attributes the gateway forwards on every request.
+            changed = []
+            for field, header in (("email", HEADER_EMAIL), ("display_name", HEADER_NAME)):
+                value = meta.get(header)
+                if value and value != getattr(user, field):
+                    setattr(user, field, value)
+                    changed.append(field)
+            if changed:
+                user.save(update_fields=changed)
+
+        # TODO(team): parse meta.get(HEADER_GROUPS, "").split(",") and
+        # reconcile Membership rows. The directory's group naming
+        # convention determines how to map group names to teams + roles.
+        return user
+
+    def configure_user(self, request, user, created=True):
+        return user

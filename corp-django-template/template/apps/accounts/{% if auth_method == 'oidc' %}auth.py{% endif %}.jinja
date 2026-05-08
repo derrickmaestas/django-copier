@@ -1,0 +1,99 @@
+"""OIDC authentication backend.
+
+Maps the corporate IdP's claims onto the project's custom User model.
+The IdP's `sub` claim or a custom `employee_id` claim is the stable
+key — never use `email`, which can change when an employee changes
+name or moves teams.
+
+Transcribed from the planly-django Appendix A (corporate SSO via OIDC).
+"""
+
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.urls import reverse
+from mozilla_django_oidc.auth import OIDCAuthenticationBackend
+
+from .models import User
+
+
+class {{ package_slug | capitalize }}OIDCBackend(OIDCAuthenticationBackend):
+    """Auth backend that creates / updates Users from IdP claims."""
+
+    def filter_users_by_claims(self, claims):
+        """Find the existing User row for these claims (None if missing).
+
+        Called BEFORE create_user — gives us a chance to match on
+        employee_id rather than the library's default of email.
+        """
+        employee_id = self._employee_id_from_claims(claims)
+        if employee_id is None:
+            return User.objects.none()
+        return User.objects.filter(employee_id=employee_id)
+
+    def create_user(self, claims):
+        """Create a User from the first time this person signs in."""
+        user = User.objects.create(
+            employee_id=self._employee_id_from_claims(claims),
+            email=claims.get("email", ""),
+            display_name=claims.get("name", ""),
+            division=claims.get("division", ""),
+            organization=claims.get("organization", ""),
+        )
+        # IdP-only auth — no local password is ever set.
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+        return user
+
+    def update_user(self, user, claims):
+        """Sync the local row with the IdP on every login."""
+        user.display_name = claims.get("name", user.display_name)
+        if "email" in claims:
+            user.email = claims["email"]
+        user.division = claims.get("division", user.division)
+        user.organization = claims.get("organization", user.organization)
+        user.save(
+            update_fields=["display_name", "email", "division", "organization"]
+        )
+        return user
+
+    def verify_claims(self, claims):
+        """Refuse to authenticate if the IdP didn't release the data we need.
+
+        Called AFTER signature validation but BEFORE create/update.
+        Reject early so we don't half-create rows.
+        """
+        if not super().verify_claims(claims):
+            return False
+        return self._employee_id_from_claims(claims) is not None
+
+    @staticmethod
+    def _employee_id_from_claims(claims) -> int | None:
+        """Look for the employee id under either claim name.
+
+        Some IdPs put it in `employee_id`; others reuse the standard `sub`.
+        """
+        raw = claims.get("employee_id") or claims.get("sub")
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+
+def provider_logout(request):
+    """Build the IdP's RP-initiated logout URL.
+
+    Some IdPs honor `id_token_hint`; some require a pre-registered
+    `post_logout_redirect_uri`. Adjust to match yours.
+    """
+    id_token = request.session.get("oidc_id_token")
+    params = {
+        "post_logout_redirect_uri": request.build_absolute_uri(
+            settings.LOGOUT_REDIRECT_URL or reverse("home")
+        ),
+    }
+    if id_token:
+        params["id_token_hint"] = id_token
+    return f"{getattr(settings, 'OIDC_OP_LOGOUT_ENDPOINT', '')}?{urlencode(params)}"

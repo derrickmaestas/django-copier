@@ -1,0 +1,117 @@
+{%- if auth_method == "oidc" %}
+"""DRF authentication that validates Bearer tokens against the corporate IdP.
+
+Tokens are signed by the IdP, not by us. We fetch the IdP's JWKS
+(public keys) once per process, cache them for an hour, and refresh
+on signature mismatch.
+
+Transcribed from the planly-django Appendix A (corporate SSO via OIDC).
+"""
+
+import jwt
+from django.conf import settings
+from rest_framework import authentication, exceptions
+
+from apps.accounts.models import User
+
+_jwks_client = jwt.PyJWKClient(
+    settings.OIDC_OP_JWKS_ENDPOINT,
+    cache_keys=True,
+    lifespan=3600,
+)
+
+
+class OIDCJWTAuthentication(authentication.BaseAuthentication):
+    """Validate `Authorization: Bearer <jwt>` against the IdP's public keys."""
+
+    keyword = "Bearer"
+
+    def authenticate(self, request):
+        header = authentication.get_authorization_header(request).split()
+        if not header or header[0].lower() != self.keyword.lower().encode():
+            return None
+        if len(header) != 2:
+            raise exceptions.AuthenticationFailed("Malformed Authorization header.")
+
+        token = header[1].decode()
+        claims = self._decode(token)
+        user = self._user_for_claims(claims)
+        return (user, token)
+
+    def authenticate_header(self, request):
+        return f'{self.keyword} realm="api"'
+
+    def _decode(self, token):
+        try:
+            signing_key = _jwks_client.get_signing_key_from_jwt(token).key
+            return jwt.decode(
+                token,
+                signing_key,
+                algorithms=[settings.OIDC_RP_SIGN_ALGO],
+                audience=settings.OIDC_API_AUDIENCE,
+                issuer=settings.OIDC_OP_ISSUER,
+                leeway=10,  # tolerate up to 10 s of NTP skew
+            )
+        except jwt.PyJWTError as exc:
+            raise exceptions.AuthenticationFailed(f"Invalid token: {exc}") from exc
+
+    @staticmethod
+    def _user_for_claims(claims):
+        employee_id = claims.get("employee_id") or claims.get("sub")
+        if employee_id is None:
+            raise exceptions.AuthenticationFailed("Token is missing employee_id.")
+        try:
+            employee_id = int(employee_id)
+        except (TypeError, ValueError) as exc:
+            raise exceptions.AuthenticationFailed("employee_id is not an integer.") from exc
+
+        user, _ = User.objects.get_or_create(
+            employee_id=employee_id,
+            defaults={
+                "email": claims.get("email", ""),
+                "display_name": claims.get("name", ""),
+            },
+        )
+        return user
+{%- elif auth_method == "gateway" %}
+"""DRF authentication that trusts the corporate API gateway's headers.
+
+Mirrors the GatewayRemoteUserMiddleware/Backend from
+gateway_auth.py — same headers, same lookup logic — but in DRF's
+authentication-class shape so requests through DRF views are
+identified the same way as session-cookie requests.
+
+# TODO(team): if the gateway signs forwarded headers, validate the
+# signature here. The proxy/firewall layer should already prevent
+# direct access to Django, but layered defense costs almost nothing.
+"""
+
+from rest_framework import authentication, exceptions
+
+from apps.accounts.gateway_auth import HEADER_EMAIL, HEADER_EMPLOYEE_ID, HEADER_NAME
+from apps.accounts.models import User
+
+
+class GatewayAPIAuthentication(authentication.BaseAuthentication):
+    """Trust the gateway's X-Forwarded-User to identify the request user."""
+
+    def authenticate(self, request):
+        raw = request.META.get(HEADER_EMPLOYEE_ID)
+        if not raw:
+            return None
+        try:
+            employee_id = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise exceptions.AuthenticationFailed(
+                "Gateway-forwarded user is not an integer."
+            ) from exc
+
+        user, _ = User.objects.get_or_create(
+            employee_id=employee_id,
+            defaults={
+                "email": request.META.get(HEADER_EMAIL, ""),
+                "display_name": request.META.get(HEADER_NAME, ""),
+            },
+        )
+        return (user, None)
+{%- endif %}
