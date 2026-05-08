@@ -1,0 +1,12 @@
+from django.urls import path
+
+from . import views
+
+app_name = "core"
+
+urlpatterns = [
+{%- if use_fts %}
+    path("search/", views.search, name="search"),
+{%- endif %}
+    path("health/", views.health, name="health"),
+]

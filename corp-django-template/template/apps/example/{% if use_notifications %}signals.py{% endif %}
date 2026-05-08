@@ -1,0 +1,14 @@
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from apps.notifications.tasks import send_item_notification
+
+from .models import Item
+
+
+@receiver(post_save, sender=Item)
+def item_post_save(sender, instance, created, **kwargs):
+    """Fan a new item out to everyone on the team."""
+    if not created:
+        return
+    send_item_notification.enqueue(instance.pk)

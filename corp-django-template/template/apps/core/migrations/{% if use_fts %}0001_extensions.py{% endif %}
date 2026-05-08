@@ -1,0 +1,38 @@
+"""Enable Postgres extensions and the unaccented English FTS config.
+
+Lives in apps.core because this is project-wide infrastructure, not
+tied to any single app's models. Running it in core also means
+domain-app FTS migrations can declare a clean dependency on this one.
+
+The custom text search configuration `english_unaccent` is what we
+pass as `config="english_unaccent"` everywhere. It runs the same
+English stemmer as the built-in `english` config but adds an
+`unaccent` dictionary in front so `resume` matches `resume`.
+"""
+
+from django.contrib.postgres.operations import (
+    TrigramExtension,
+    UnaccentExtension,
+)
+from django.db import migrations
+
+CREATE_UNACCENT_CONFIG = """
+CREATE TEXT SEARCH CONFIGURATION english_unaccent ( COPY = pg_catalog.english );
+ALTER TEXT SEARCH CONFIGURATION english_unaccent
+    ALTER MAPPING FOR hword, hword_part, word
+    WITH unaccent, english_stem;
+"""
+
+DROP_UNACCENT_CONFIG = "DROP TEXT SEARCH CONFIGURATION IF EXISTS english_unaccent;"
+
+
+class Migration(migrations.Migration):
+    initial = True
+
+    dependencies = []
+
+    operations = [
+        UnaccentExtension(),
+        TrigramExtension(),
+        migrations.RunSQL(CREATE_UNACCENT_CONFIG, reverse_sql=DROP_UNACCENT_CONFIG),
+    ]

@@ -1,0 +1,31 @@
+{%- if use_fts %}
+from django.contrib.postgres.search import SearchQuery, SearchRank
+from django.db.models import F
+{%- endif %}
+from django.db import models
+
+
+class ItemQuerySet(models.QuerySet):
+    """Team-scoped queryset for Item."""
+
+    def for_user(self, user):
+        """Return items in teams this user belongs to."""
+        return self.filter(team__memberships__user=user).distinct()
+{%- if use_fts %}
+
+    def search(self, query: str):
+        """Full-text search ranked by ts_rank against `search_vector`.
+
+        Uses Postgres' websearch_to_tsquery so users can use quoted
+        phrases, OR, and -excluded just like a search engine.
+        """
+        cleaned = (query or "").strip()
+        if not cleaned:
+            return self.none()
+        ts_query = SearchQuery(cleaned, search_type="websearch", config="english_unaccent")
+        return (
+            self.filter(search_vector=ts_query)
+            .annotate(rank=SearchRank(F("search_vector"), ts_query))
+            .order_by("-rank", "-created_at")
+        )
+{%- endif %}

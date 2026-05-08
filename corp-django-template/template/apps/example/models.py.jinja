@@ -1,0 +1,70 @@
+from django.conf import settings
+{%- if use_fts %}
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector, SearchVectorField
+{%- endif %}
+from django.db import models
+
+from apps.core.models import TimeStampedModel
+
+from .querysets import ItemQuerySet
+
+
+class Item(TimeStampedModel):
+    """Placeholder domain model — replace with your real models.
+
+    Demonstrates the Planly conventions every toggle wires together:
+      - team-scoped via for_user() on the queryset
+      - TimeStampedModel from apps.core
+      - created_by FK to settings.AUTH_USER_MODEL
+{%- if use_fts %}
+      - search_vector GeneratedField for Postgres FTS
+{%- endif %}
+{%- if use_attachments %}
+      - related Attachment via the attachments app
+{%- endif %}
+{%- if use_notifications %}
+      - notification fan-out on create via signals
+{%- endif %}
+
+    Day-one task for your team: `git rm -r apps/example` and add your
+    domain models in their place.
+    """
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    team = models.ForeignKey(
+        "accounts.Team",
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_items",
+    )
+{%- if use_fts %}
+
+    search_vector = models.GeneratedField(
+        expression=(
+            SearchVector("name", config="english_unaccent", weight="A")
+            + SearchVector("description", config="english_unaccent", weight="B")
+        ),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
+{%- endif %}
+
+    objects = ItemQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+{%- if use_fts %}
+        indexes = [
+            GinIndex(fields=["search_vector"], name="example_item_fts_idx"),
+        ]
+{%- endif %}
+
+    def __str__(self):
+        return self.name
