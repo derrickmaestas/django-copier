@@ -1,0 +1,18 @@
+{% raw %}{% extends "base.html" %}
+
+{% block title %}Delete {{ object.name }}{% endblock %}
+
+{% block content %}{% endraw %}
+{%- if use_htmx %}
+{% raw %}{% include "partials/_confirm_delete.html" with object_label=object.name object_kind="item" cancel_url='/example/' %}{% endraw %}
+{%- else %}
+<div>
+  <h1>Delete {% raw %}{{ object.name }}{% endraw %}?</h1>
+  <form method="post">
+    {% raw %}{% csrf_token %}{% endraw %}
+    <button type="submit">Yes, delete</button>
+    <a href="/example/">Cancel</a>
+  </form>
+</div>
+{%- endif %}
+{% raw %}{% endblock %}{% endraw %}

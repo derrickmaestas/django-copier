@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Items{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold text-slate-900">Items</h1>
+  <a href="{% url 'example:item-create' %}"
+     class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+    + New item
+  </a>
+</div>
+
+{% if items %}
+  <ul class="divide-y divide-slate-200 bg-white rounded-lg shadow-sm border border-slate-200">
+    {% for item in items %}
+      <li class="px-4 py-3">
+        <a href="{% url 'example:item-detail' item.pk %}"
+           class="text-indigo-600 hover:text-indigo-700 font-medium">
+          {{ item.name }}
+        </a>
+        <p class="text-sm text-slate-500">{{ item.team.name }}</p>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="text-slate-600">No items yet. Create one to get started.</p>
+{% endif %}
+{% endblock %}

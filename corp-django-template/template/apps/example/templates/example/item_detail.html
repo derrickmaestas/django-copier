@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.name }}{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-2xl">
+  <h1 class="text-2xl font-semibold text-slate-900">{{ item.name }}</h1>
+  <p class="text-sm text-slate-500 mb-4">{{ item.team.name }} · created {{ item.created_at|date:"M j, Y" }}</p>
+  <div class="prose">{{ item.description|linebreaks }}</div>
+
+  <div class="mt-6 flex items-center gap-3">
+    <a href="{% url 'example:item-edit' item.pk %}"
+       class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+      Edit
+    </a>
+    <a href="{% url 'example:item-delete' item.pk %}"
+       class="text-sm text-red-600 hover:text-red-700">
+      Delete
+    </a>
+    <a href="{% url 'example:item-list' %}" class="text-sm text-slate-600 hover:text-slate-900">
+      Back to list
+    </a>
+  </div>
+</div>
+{% endblock %}

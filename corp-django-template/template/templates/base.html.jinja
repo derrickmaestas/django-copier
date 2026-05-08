@@ -1,0 +1,77 @@
+{%- raw %}{% load static %}{% endraw %}<!DOCTYPE html>
+<html lang="en"{% if use_htmx %} class="h-full bg-slate-50"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% raw %}{% block title %}{% endraw %}{{ project_name }}{% raw %}{% endblock %}{% endraw %}</title>
+{%- if use_htmx %}
+  <link rel="stylesheet" href="{% raw %}{% static 'css/tailwind.css' %}{% endraw %}">
+  {% raw %}{% block extra_css %}{% endblock %}{% endraw %}
+{%- endif %}
+</head>
+<body{% if use_htmx %} class="min-h-full text-slate-800 antialiased"
+      hx-headers='{"X-CSRFToken": "{% raw %}{{ csrf_token }}{% endraw %}"}'{% endif %}>
+
+  <nav{% if use_htmx %} class="bg-white border-b border-slate-200"{% endif %}>
+    <div{% if use_htmx %} class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between h-14"{% endif %}>
+      <a href="{% raw %}{% url 'home' %}{% endraw %}"{% if use_htmx %} class="text-lg font-semibold text-indigo-600 hover:text-indigo-700"{% endif %}>
+        {{ project_name }}
+      </a>
+{%- if use_htmx and use_fts %}
+      {% raw %}{% if user.is_authenticated %}
+        <form action="{% url 'core:search' %}" method="get"
+              class="flex flex-1 max-w-md mx-4">
+          <input type="search" name="q" value="{{ request.GET.q|default:'' }}"
+                 placeholder="Search…"
+                 class="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm
+                        focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                 aria-label="Search">
+        </form>
+      {% endif %}{% endraw %}
+{%- endif %}
+      <div{% if use_htmx %} class="flex items-center gap-4 text-sm"{% endif %}>
+        {% raw %}{% if user.is_authenticated %}{% endraw %}
+          <a href="{% raw %}{% url 'example:item-list' %}{% endraw %}"{% if use_htmx %} class="text-slate-600 hover:text-slate-900"{% endif %}>Items</a>
+{%- if use_notifications %}
+          <a href="{% raw %}{% url 'notifications:notification-list' %}{% endraw %}"{% if use_htmx %} class="text-slate-600 hover:text-slate-900"{% endif %}>
+            Notifications
+          </a>
+{%- endif %}
+          <span{% if use_htmx %} class="text-slate-500 hidden sm:inline"{% endif %}>{% raw %}{{ user }}{% endraw %}</span>
+{%- if auth_method == "oidc" %}
+          <a href="{% raw %}{% url 'oidc_logout' %}{% endraw %}"{% if use_htmx %} class="text-slate-600 hover:text-slate-900"{% endif %}>
+            Log out
+          </a>
+{%- else %}
+          <form action="{% raw %}{% url 'logout' %}{% endraw %}" method="post"{% if use_htmx %} class="inline"{% endif %}>
+            {% raw %}{% csrf_token %}{% endraw %}
+            <button type="submit"{% if use_htmx %} class="text-slate-600 hover:text-slate-900 cursor-pointer"{% endif %}>
+              Log out
+            </button>
+          </form>
+{%- endif %}
+        {% raw %}{% else %}{% endraw %}
+{%- if auth_method == "oidc" %}
+          <a href="{% raw %}{% url 'oidc_authentication_init' %}{% endraw %}"{% if use_htmx %} class="rounded-md bg-indigo-600 px-3 py-1.5 text-white hover:bg-indigo-700"{% endif %}>
+            Sign in
+          </a>
+{%- else %}
+          <a href="{% raw %}{% url 'login' %}{% endraw %}"{% if use_htmx %} class="rounded-md bg-indigo-600 px-3 py-1.5 text-white hover:bg-indigo-700"{% endif %}>
+            Log in
+          </a>
+{%- endif %}
+        {% raw %}{% endif %}{% endraw %}
+      </div>
+    </div>
+  </nav>
+
+  <main{% if use_htmx %} class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6"{% endif %}>
+    {% raw %}{% block content %}{% endblock %}{% endraw %}
+  </main>
+{%- if use_htmx %}
+
+  <script src="{% raw %}{% static 'vendor/htmx.min.js' %}{% endraw %}" defer></script>
+  {% raw %}{% block extra_js %}{% endblock %}{% endraw %}
+{%- endif %}
+</body>
+</html>

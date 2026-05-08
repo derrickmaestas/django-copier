@@ -1,0 +1,41 @@
+{% raw %}{% extends "base.html" %}
+
+{% block title %}{% endraw %}{{ project_name }}{% raw %}{% endblock %}
+
+{% block content %}{% endraw %}
+<div{% if use_htmx %} class="text-center py-16"{% endif %}>
+  <h1{% if use_htmx %} class="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl"{% endif %}>
+    {{ project_name }}
+  </h1>
+  <p{% if use_htmx %} class="mt-4 text-lg text-slate-600"{% endif %}>
+    {{ description }}
+  </p>
+
+  <div{% if use_htmx %} class="mt-8"{% endif %}>
+    {% raw %}{% if user.is_authenticated %}{% endraw %}
+      <a href="{% raw %}{% url 'example:item-list' %}{% endraw %}"
+{%- if use_htmx %}
+         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+{%- endif %}>
+        Go to your items →
+      </a>
+    {% raw %}{% else %}{% endraw %}
+{%- if auth_method == "oidc" %}
+      <a href="{% raw %}{% url 'oidc_authentication_init' %}{% endraw %}"
+{%- if use_htmx %}
+         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+{%- endif %}>
+        Sign in to get started
+      </a>
+{%- else %}
+      <a href="{% raw %}{% url 'login' %}{% endraw %}"
+{%- if use_htmx %}
+         class="inline-flex items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+{%- endif %}>
+        Log in to get started
+      </a>
+{%- endif %}
+    {% raw %}{% endif %}{% endraw %}
+  </div>
+</div>
+{% raw %}{% endblock %}{% endraw %}

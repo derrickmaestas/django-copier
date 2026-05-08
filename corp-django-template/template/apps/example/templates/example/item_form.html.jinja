@@ -1,0 +1,18 @@
+{% raw %}{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit {{ object.name }}{% else %}New item{% endif %}{% endblock %}
+
+{% block content %}{% endraw %}
+{%- if use_htmx %}
+{% raw %}{% include "partials/_form_card.html" with heading=object|default:"New item" cancel_url=object.get_absolute_url|default:'/example/' submit_label="Save" %}{% endraw %}
+{%- else %}
+<div>
+  <h1>{% raw %}{% if object %}Edit {{ object.name }}{% else %}New item{% endif %}{% endraw %}</h1>
+  <form method="post">
+    {% raw %}{% csrf_token %}
+    {{ form.as_p }}{% endraw %}
+    <button type="submit">Save</button>
+  </form>
+</div>
+{%- endif %}
+{% raw %}{% endblock %}{% endraw %}
