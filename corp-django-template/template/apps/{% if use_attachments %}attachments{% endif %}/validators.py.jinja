@@ -1,0 +1,99 @@
+"""Server-side validation for attachment uploads.
+
+Centralized so the form, an API serializer, and any future bulk-import
+path all run the same checks. Each validator raises a `ValidationError`
+keyed to the `file` field.
+
+What we check, in order:
+
+1. **Filename safety** — reject path separators, null bytes, leading
+   dots, and names with multiple extensions (`invoice.pdf.exe`).
+2. **Size** — refuse files over {{ package_slug | upper }}_MAX_ATTACHMENT_SIZE_MB.
+3. **Extension allowlist** — only kinds we deliberately support.
+4. **MIME sniff vs claimed type** — read the first kilobytes with
+   libmagic and reject anything whose actual content type isn't in
+   the allowlist. Stops the rename-to-pdf trick.
+"""
+
+from __future__ import annotations
+
+import magic
+from django.conf import settings
+from django.core.exceptions import ValidationError
+
+ALLOWED_EXTENSIONS = frozenset({
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    ".txt", ".md", ".csv", ".json",
+    ".zip",
+})
+
+ALLOWED_MIME_TYPES = frozenset({
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+    "text/plain", "text/markdown", "text/csv", "application/json",
+    "application/zip",
+})
+
+# 8 KiB is plenty for every signature in our allowlist; sniff the head,
+# not the body.
+SNIFF_BYTES = 8192
+
+
+def validate_filename(name: str) -> None:
+    if not name:
+        raise ValidationError({"file": "Uploads must have a filename."})
+    if "/" in name or "\\" in name or "\x00" in name:
+        raise ValidationError({"file": "Filename contains illegal characters."})
+    if name.startswith("."):
+        raise ValidationError({"file": "Filename must not start with a dot."})
+    if name.count(".") != 1:
+        raise ValidationError(
+            {"file": "Filename must have exactly one extension."}
+        )
+
+
+def validate_size(uploaded_file) -> None:
+    max_bytes = settings.{{ package_slug | upper }}_MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
+    if uploaded_file.size > max_bytes:
+        mb = round(uploaded_file.size / (1024 * 1024), 2)
+        raise ValidationError(
+            {
+                "file": (
+                    f"File is {mb} MB — "
+                    f"exceeds the {settings.{{ package_slug | upper }}_MAX_ATTACHMENT_SIZE_MB} MB limit."
+                )
+            }
+        )
+
+
+def validate_extension(name: str) -> None:
+    suffix = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise ValidationError(
+            {"file": f"Files of type {suffix or '<none>'} are not allowed."}
+        )
+
+
+def validate_content_type(uploaded_file) -> None:
+    head = uploaded_file.read(SNIFF_BYTES)
+    uploaded_file.seek(0)
+    sniffed = magic.from_buffer(head, mime=True)
+    if sniffed not in ALLOWED_MIME_TYPES:
+        raise ValidationError(
+            {"file": f"Detected content type {sniffed!r} is not allowed."}
+        )
+
+
+def run_all(uploaded_file) -> None:
+    """Run every validator in order. Cheap checks first."""
+    validate_filename(uploaded_file.name)
+    validate_size(uploaded_file)
+    validate_extension(uploaded_file.name)
+    validate_content_type(uploaded_file)

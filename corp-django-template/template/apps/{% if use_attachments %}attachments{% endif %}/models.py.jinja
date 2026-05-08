@@ -1,0 +1,79 @@
+from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
+from django.db import models
+
+from apps.core.models import TimeStampedModel
+
+from .querysets import AttachmentQuerySet
+
+
+def attachment_upload_path(instance, filename: str) -> str:
+    """Group uploaded files under a per-target directory."""
+    return f"attachments/{instance.target_content_type_id}_{instance.target_object_id}/{filename}"
+
+
+class Attachment(TimeStampedModel):
+    """A file attached to any model via GenericForeignKey.
+
+    Generic so consumer projects can attach files to whatever domain
+    object they want without having to fork this app. Set the FK with
+    ``Attachment.objects.create(target=my_obj, file=...)``.
+    """
+
+    target_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+    )
+    target_object_id = models.PositiveBigIntegerField()
+    target = GenericForeignKey("target_content_type", "target_object_id")
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="uploaded_attachments",
+    )
+    file = models.FileField(upload_to=attachment_upload_path)
+    filename = models.CharField(max_length=255)
+    size_bytes = models.PositiveBigIntegerField(default=0)
+    content_type = models.CharField(max_length=100, blank=True)
+
+    objects = AttachmentQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(
+                fields=["target_content_type", "target_object_id", "-created_at"],
+                name="idx_attach_target_created",
+            ),
+        ]
+
+    def __str__(self):
+        return self.filename
+
+    @property
+    def size_mb(self) -> float:
+        return round(self.size_bytes / (1024 * 1024), 2)
+
+    def save(self, *args, **kwargs):
+        if self.file:
+            self.size_bytes = self.file.size
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        max_bytes = settings.{{ package_slug | upper }}_MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
+        size = self.file.size if self.file else self.size_bytes
+        if size > max_bytes:
+            mb = round(size / (1024 * 1024), 2)
+            raise ValidationError(
+                {
+                    "file": (
+                        f"File is {mb} MB — "
+                        f"exceeds the {settings.{{ package_slug | upper }}_MAX_ATTACHMENT_SIZE_MB} MB limit."
+                    )
+                }
+            )
