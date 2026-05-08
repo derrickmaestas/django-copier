@@ -1,0 +1,21 @@
+# Minimal: OIDC auth, no optional features.
+project_name: "Minimal"
+project_slug: "minimal"
+package_slug: "minimal"
+description: "Minimal corp-django-template smoke project."
+author_name: "Engineering"
+email: "engineering@example.com"
+domain_name: "example.com"
+timezone: "UTC"
+python_version: "3.14"
+postgresql_version: "17"
+auth_method: "oidc"
+use_drf: false
+use_htmx: false
+use_fts: false
+use_attachments: false
+use_notifications: false
+use_whitenoise: true
+corporate_ca_bundle: false
+gitlab_runner_image: "python:3.14-slim-trixie"
+open_source_license: "Proprietary"

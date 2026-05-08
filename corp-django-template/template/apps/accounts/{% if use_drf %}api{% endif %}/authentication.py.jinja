@@ -73,6 +73,24 @@ class OIDCJWTAuthentication(authentication.BaseAuthentication):
             },
         )
         return user
+
+
+# drf-spectacular hook so /api/v1/schema/ documents this auth class
+# as a Bearer token. Without it spectacular emits a warning per view.
+from drf_spectacular.extensions import OpenApiAuthenticationExtension  # noqa: E402
+
+
+class OIDCJWTAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = OIDCJWTAuthentication
+    name = "OIDC Bearer"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT issued by the corporate IdP.",
+        }
 {%- elif auth_method == "gateway" %}
 """DRF authentication that trusts the corporate API gateway's headers.
 
@@ -114,4 +132,20 @@ class GatewayAPIAuthentication(authentication.BaseAuthentication):
             },
         )
         return (user, None)
+
+
+from drf_spectacular.extensions import OpenApiAuthenticationExtension  # noqa: E402
+
+
+class GatewayAPIAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = GatewayAPIAuthentication
+    name = "GatewayUser"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-Forwarded-User",
+            "description": "Employee ID set by the corporate API gateway.",
+        }
 {%- endif %}

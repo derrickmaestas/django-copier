@@ -1,0 +1,22 @@
+# Full: every toggle on.
+project_name: "Full Stack"
+project_slug: "fullstack"
+package_slug: "fullstack"
+description: "All-features corp-django-template smoke project."
+author_name: "Engineering"
+email: "engineering@example.com"
+domain_name: "example.com"
+timezone: "UTC"
+python_version: "3.14"
+postgresql_version: "17"
+tailwind_version: "v4.1.10"
+auth_method: "oidc"
+use_drf: true
+use_htmx: true
+use_fts: true
+use_attachments: true
+use_notifications: true
+use_whitenoise: true
+corporate_ca_bundle: false
+gitlab_runner_image: "python:3.14-slim-trixie"
+open_source_license: "Proprietary"
